@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 World Cup Pool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #0a0e1a;
+  --surface: #111827;
+  --surface2: #1a2235;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0f4ff;
+  --muted: #8896b3;
+  --gold: #f5c842;
+  --gold2: #e6a800;
+  --teal: #00d4aa;
+  --teal2: #00b090;
+  --red: #ff4757;
+}
+* { box-sizing: border-box; margin:0; padding:0; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size:14px; min-height:100vh; }
+
+/* PITCH LINES background */
+body::before {
+  content:'';
+  position:fixed; top:0; left:0; right:0; bottom:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events:none; z-index:0;
+}
+
+/* HEADER */
+header {
+  position:relative; z-index:10;
+  background: linear-gradient(135deg, #0d1b3e 0%, #0a2a1a 100%);
+  border-bottom: 1px solid var(--border2);
+  padding: 0 24px;
+}
+.header-inner {
+  max-width:1100px; margin:0 auto;
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 18px 0;
+  gap:16px; flex-wrap:wrap;
+}
+.header-left { display:flex; align-items:center; gap:16px; }
+.trophy-icon {
+  width:48px; height:48px; border-radius:12px;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  display:flex; align-items:center; justify-content:center;
+  font-size:26px; flex-shrink:0;
+}
+.header-title { font-family:'Bebas Neue', sans-serif; font-size:32px; letter-spacing:2px; color:var(--gold); line-height:1; }
+.header-sub { font-size:12px; color:var(--muted); margin-top:3px; letter-spacing:.3px; }
+.live-chip {
+  display:flex; align-items:center; gap:6px;
+  background: rgba(255,71,87,0.15); border:1px solid rgba(255,71,87,0.35);
+  color: var(--red); font-size:11px; font-weight:600;
+  padding: 5px 12px; border-radius:20px; letter-spacing:.5px;
+}
+.live-dot { width:6px; height:6px; border-radius:50%; background:var(--red); animation:pulse 1.4s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
+
+/* TABS */
+.tabs-bar {
+  position:relative; z-index:10;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.tabs-inner {
+  max-width:1100px; margin:0 auto;
+  display:flex; gap:0; overflow-x:auto;
+}
+.tab {
+  padding: 14px 22px; font-size:13px; font-weight:500;
+  border:none; background:none; color:var(--muted); cursor:pointer;
+  border-bottom: 2px solid transparent; margin-bottom:-1px;
+  transition: all .2s; white-space:nowrap; letter-spacing:.2px;
+}
+.tab:hover { color:var(--text); }
+.tab.active { color:var(--teal); border-bottom-color:var(--teal); }
+
+/* MAIN */
+.container { max-width:1100px; margin:0 auto; padding:24px 16px; position:relative; z-index:1; }
+.section { display:none; }
+.section.active { display:block; }
+
+/* STAT CARDS */
+.stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:24px; }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:16px 18px;
+  position:relative; overflow:hidden;
+}
+.stat-card::after {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+}
+.stat-card.gold::after { background:linear-gradient(90deg,var(--gold),transparent); }
+.stat-card.teal::after { background:linear-gradient(90deg,var(--teal),transparent); }
+.stat-card.red::after  { background:linear-gradient(90deg,var(--red),transparent); }
+.stat-card.blue::after { background:linear-gradient(90deg,#6ea8fe,transparent); }
+.stat-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; margin-bottom:6px; }
+.stat-value { font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:1px; color:var(--text); line-height:1; }
+.stat-sub { font-size:11px; color:var(--muted); margin-top:4px; }
+
+/* CARD */
+.card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:14px; overflow:hidden; margin-bottom:20px;
+}
+.card-header {
+  padding:14px 18px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.card-title { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:1.5px; color:var(--text); }
+.card-sub { font-size:12px; color:var(--muted); }
+
+/* TABLE */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th {
+  background:var(--surface2); font-size:10px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.6px; color:var(--muted);
+  padding:10px 14px; text-align:left; white-space:nowrap;
+  position:sticky; top:0; z-index:2;
+}
+td { padding:11px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(255,255,255,0.03); }
+
+/* RANK */
+.rank-num {
+  font-family:'Bebas Neue',sans-serif; font-size:18px;
+  width:32px; text-align:center; display:inline-block;
+}
+.rank-1 { color:var(--gold); }
+.rank-2 { color:#c0c0c0; }
+.rank-3 { color:#cd7f32; }
+.rank-other { color:var(--muted); }
+
+/* TEAM PILLS */
+.team-pill {
+  display:inline-block; font-size:11px; padding:2px 8px;
+  border-radius:20px; margin:1px 2px;
+  background:rgba(255,255,255,0.07); color:var(--muted);
+  border:1px solid transparent;
+}
+.team-pill.live {
+  background:rgba(0,212,170,0.1); color:var(--teal);
+  border-color:rgba(0,212,170,0.3);
+}
+
+/* PROGRESS */
+.prog-wrap { height:4px; background:rgba(255,255,255,0.08); border-radius:2px; margin-top:5px; overflow:hidden; min-width:60px; }
+.prog-fill { height:100%; border-radius:2px; background:var(--teal); transition:width .5s ease; }
+.prog-fill.gold { background:var(--gold); }
+
+/* SQUARES BADGE */
+.sq-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px;
+  background:rgba(110,168,254,0.12); color:#6ea8fe; border:1px solid rgba(110,168,254,0.25);
+}
+.sq-badge.last { background:rgba(245,200,66,0.12); color:var(--gold); border-color:rgba(245,200,66,0.3); }
+.sq-badge.leader { background:rgba(245,200,66,0.15); color:var(--gold); border-color:rgba(245,200,66,0.4); font-size:13px; }
+
+/* PTS */
+.pts-val { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:.5px; }
+
+/* SCORE INPUTS */
+.score-row {
+  display:grid; grid-template-columns:1fr 72px 72px 64px;
+  gap:8px; align-items:center; padding:9px 16px;
+  border-bottom:1px solid var(--border);
+}
+.score-row:last-child { border-bottom:none; }
+.score-row:hover { background:rgba(255,255,255,0.02); }
+.score-input {
+  width:100%; border:1px solid var(--border2); border-radius:8px;
+  padding:6px 8px; font-size:13px; text-align:center;
+  background:var(--surface2); color:var(--text);
+}
+.score-input:focus { outline:none; border-color:var(--teal); }
+
+/* BTN */
+.btn {
+  padding:8px 18px; border-radius:8px; font-size:13px; font-weight:500;
+  cursor:pointer; border:1px solid; transition:all .15s; letter-spacing:.2px;
+}
+.btn-teal { background:var(--teal); color:#0a0e1a; border-color:var(--teal); font-weight:600; }
+.btn-teal:hover { background:var(--teal2); border-color:var(--teal2); }
+.btn-ghost { background:transparent; color:var(--muted); border-color:var(--border2); }
+.btn-ghost:hover { color:var(--text); border-color:var(--border2); background:rgba(255,255,255,0.05); }
+
+/* FILTER ROW */
+.filter-row { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+.filter-row input, .filter-row select {
+  padding:7px 12px; border:1px solid var(--border2); border-radius:8px;
+  font-size:13px; background:var(--surface); color:var(--text);
+}
+.filter-row input:focus, .filter-row select:focus { outline:none; border-color:var(--teal); }
+
+/* HELP BOX */
+.info-box {
+  background:rgba(0,212,170,0.06); border:1px solid rgba(0,212,170,0.2);
+  border-radius:10px; padding:13px 16px; margin-bottom:20px;
+  font-size:13px; color:#80e8d0; line-height:1.6;
+}
+
+/* GRID */
+.final-grid { border-collapse:collapse; font-size:11px; }
+.final-grid td, .final-grid th {
+  border:1px solid var(--border); padding:0;
+  width:54px; height:52px; text-align:center; vertical-align:middle;
+}
+.grid-axis { background:var(--surface2); color:var(--muted); font-size:10px; font-weight:600; width:40px; }
+.grid-head { background:rgba(0,212,170,0.12); color:var(--teal); font-size:11px; font-weight:600; }
+.grid-cell { color:var(--muted); font-size:10px; transition:background .15s; cursor:default; }
+.grid-cell:hover { background:rgba(0,212,170,0.07); }
+
+/* LEVEL BADGE */
+.lvl { font-size:10px; padding:1px 6px; border-radius:20px; font-weight:600;
+  background:rgba(255,255,255,0.07); color:var(--muted); margin-left:4px; }
+
+/* DIVIDER */
+.section-eyebrow {
+  font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:2px;
+  color:var(--teal); margin-bottom:14px;
+}
+
+@media(max-width:600px){
+  .header-title { font-size:24px; }
+  .trophy-icon { width:38px; height:38px; font-size:20px; }
+  .stat-grid { grid-template-columns:repeat(2,1fr); }
+  .score-row { grid-template-columns:1fr 58px 58px 50px; gap:6px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-left">
+      <div class="trophy-icon">&#127942;</div>
+      <div>
+        <div class="header-title">2026 World Cup Pool</div>
+        <div class="header-sub">Commissioner: Kenny Rogers &nbsp;&bull;&nbsp; 26 participants &nbsp;&bull;&nbsp; $100 buy-in</div>
+      </div>
+    </div>
+    <div class="live-chip"><span class="live-dot"></span>LIVE SCORING</div>
+  </div>
+</header>
+
+<div class="tabs-bar">
+  <div class="tabs-inner">
+    <button class="tab active" onclick="showTab('leaderboard',this)">&#127942; Leaderboard</button>
+    <button class="tab" onclick="showTab('picks',this)">&#128203; All Picks</button>
+    <button class="tab" onclick="showTab('teams',this)">&#9917; Teams</button>
+    <button class="tab" onclick="showTab('scores',this)">&#9999; Enter Results</button>
+    <button class="tab" onclick="showTab('grid',this)">&#9726; Final Grid</button>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- LEADERBOARD -->
+<div id="tab-leaderboard" class="section active">
+  <div class="stat-grid" id="summary-stats"></div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Standings</span>
+      <span class="card-sub">1 pt / goal &nbsp;&bull;&nbsp; 3 pts / win</span>
+    </div>
+    <div class="table-wrap"><table id="leaderboard-table">
+      <thead><tr>
+        <th style="width:44px">#</th>
+        <th>Participant</th>
+        <th style="text-align:center">Goals</th>
+        <th style="text-align:center">Wins</th>
+        <th style="text-align:center">Points</th>
+        <th style="text-align:center">Final Squares</th>
+        <th>Teams</th>
+      </tr></thead>
+      <tbody id="leaderboard-body"></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Points distribution</span></div>
+    <div style="padding:16px;position:relative;height:260px">
+      <canvas id="points-chart" role="img" aria-label="Bar chart of participant points"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- PICKS -->
+<div id="tab-picks" class="section">
+  <div class="filter-row">
+    <input type="text" id="picks-search" placeholder="Search participant..." oninput="renderPicks()" style="width:200px">
+    <select id="picks-filter-team" onchange="renderPicks()">
+      <option value="">All teams</option>
+    </select>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">All Picks</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Participant</th>
+        <th>Level 1</th><th>Level 2</th><th>Level 3</th>
+        <th>Level 4</th><th>Level 5</th><th>Level 6</th>
+      </tr></thead>
+      <tbody id="picks-body"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- TEAMS -->
+<div id="tab-teams" class="section">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Team Tracker</span>
+      <span class="card-sub">Update scores in "Enter Results"</span>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Team</th><th>Level</th>
+        <th style="text-align:center">Goals</th>
+        <th style="text-align:center">Wins</th>
+        <th style="text-align:center">Pts Value</th>
+        <th>Owned by</th>
+      </tr></thead>
+      <tbody id="teams-body"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ENTER RESULTS -->
+<div id="tab-scores" class="section">
+  <div class="info-box">
+    Enter goals scored and wins per team. Points recalculate instantly across all tabs when you hit <strong>Save &amp; Recalculate</strong>.
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Team Results</span>
+      <button class="btn btn-teal" onclick="saveScores()">Save &amp; Recalculate</button>
+    </div>
+    <div style="padding:10px 16px 4px;display:grid;grid-template-columns:1fr 72px 72px 64px;gap:8px;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px">
+      <span>Team</span><span style="text-align:center">Goals</span><span style="text-align:center">Wins</span><span style="text-align:center">Pts</span>
+    </div>
+    <div id="score-inputs"></div>
+  </div>
+</div>
+
+<!-- GRID -->
+<div id="tab-grid" class="section">
+  <div class="info-box">
+    <strong>How it works:</strong> rows = last digit of the minute a goal is scored, columns = last digit of the scorer's jersey number. Squares are randomly assigned after the semi-finals based on final standings.
+  </div>
+  <div class="stat-grid" id="squares-stats"></div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Square Allocations</span><span class="card-sub">After semi-finals</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Rank</th><th>Participant</th>
+        <th style="text-align:center">Points</th>
+        <th style="text-align:center">Squares</th>
+      </tr></thead>
+      <tbody id="squares-body"></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Final Match Grid</span><span class="card-sub">Assigned after semi-finals</span></div>
+    <div style="overflow-x:auto;padding:16px">
+      <table class="final-grid" id="final-grid-table"></table>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const PARTICIPANTS = [
+  {name:"Kenny Rogers",    l1:"Brazil",    l2:"Colombia",   l3:"USA",         l4:"Canada",  l5:"South Korea", l6:"Saudi Arabia"},
+  {name:"Jeff Shell",      l1:"Spain",     l2:"Germany",    l3:"Mexico",      l4:"Canada",  l5:"Ghana",       l6:"Panama"},
+  {name:"Jake Weitzman",   l1:"Brazil",    l2:"Netherlands",l3:"USA",         l4:"Senegal", l5:"South Korea", l6:"South Africa"},
+  {name:"Tom Georgis",     l1:"Spain",     l2:"Belgium",    l3:"Mexico",      l4:"Croatia", l5:"Ivory Coast", l6:"South Africa"},
+  {name:"Bill Connelly",   l1:"Spain",     l2:"Germany",    l3:"Mexico",      l4:"Senegal", l5:"South Korea", l6:"Saudi Arabia"},
+  {name:"Dave Sinclair",   l1:"France",    l2:"Argentina",  l3:"Switzerland", l4:"Scotland",l5:"Ivory Coast", l6:"DR Congo"},
+  {name:"Theo Rogers",     l1:"France",    l2:"Netherlands",l3:"Morocco",     l4:"Canada",  l5:"Egypt",       l6:"New Zealand"},
+  {name:"Steve Rogers",    l1:"Spain",     l2:"Norway",     l3:"Uruguay",     l4:"Croatia", l5:"Ivory Coast", l6:"Panama"},
+  {name:"Luke Magargee",   l1:"France",    l2:"Netherlands",l3:"Switzerland", l4:"Croatia", l5:"South Korea", l6:"Saudi Arabia"},
+  {name:"Evan Benner",     l1:"Brazil",    l2:"Argentina",  l3:"Uruguay",     l4:"Croatia", l5:"South Korea", l6:"Saudi Arabia"},
+  {name:"Bill Marsh",      l1:"France",    l2:"Netherlands",l3:"Morocco",     l4:"Turkey",  l5:"South Korea", l6:"Qatar"},
+  {name:"Dave Zamos",      l1:"France",    l2:"Norway",     l3:"Ecuador",     l4:"Croatia", l5:"Ivory Coast", l6:"DR Congo"},
+  {name:"Moose Hikin",     l1:"Spain",     l2:"Germany",    l3:"Uruguay",     l4:"Croatia", l5:"South Korea", l6:"Panama"},
+  {name:"Sam Rogers",      l1:"France",    l2:"Germany",    l3:"Ecuador",     l4:"Turkey",  l5:"Ghana",       l6:"Haiti"},
+  {name:"Dana Shell",      l1:"Spain",     l2:"Argentina",  l3:"Morocco",     l4:"Senegal", l5:"Australia",   l6:"Qatar"},
+  {name:"Jeff Nathanson",  l1:"Spain",     l2:"Germany",    l3:"Uruguay",     l4:"Sweden",  l5:"Ivory Coast", l6:"Qatar"},
+  {name:"Jonah Nathanson", l1:"England",   l2:"Argentina",  l3:"USA",         l4:"Canada",  l5:"Australia",   l6:"South Africa"},
+  {name:"Maddie Rogers",   l1:"Spain",     l2:"Argentina",  l3:"USA",         l4:"Croatia", l5:"Australia",   l6:"Qatar"},
+  {name:"Alex Shoflick",   l1:"Spain",     l2:"Germany",    l3:"Morocco",     l4:"Sweden",  l5:"South Korea", l6:"Panama"},
+  {name:"Joe Rogers",      l1:"England",   l2:"Argentina",  l3:"Uruguay",     l4:"Croatia", l5:"South Korea", l6:"Uzbekistan"},
+  {name:"Reed Farkas",     l1:"Spain",     l2:"Argentina",  l3:"Morocco",     l4:"Senegal", l5:"Ghana",       l6:"Cape Verde"},
+  {name:"Mark Hoppus",     l1:"Portugal",  l2:"Argentina",  l3:"Uruguay",     l4:"Turkey",  l5:"Paraguay",    l6:"Panama"},
+  {name:"Charlie Rogers",  l1:"England",   l2:"Argentina",  l3:"Morocco",     l4:"Senegal", l5:"Iran",        l6:"South Africa"},
+  {name:"Jeff Samberg",    l1:"France",    l2:"Colombia",   l3:"Mexico",      l4:"Senegal", l5:"Ivory Coast", l6:"Cape Verde"},
+  {name:"Hal Sigmunstad",  l1:"Portugal",  l2:"Netherlands",l3:"Ecuador",     l4:"Croatia", l5:"Bosnia",      l6:"New Zealand"},
+  {name:"Dan Shell",       l1:"France",    l2:"Argentina",  l3:"USA",         l4:"Croatia", l5:"Ivory Coast", l6:"South Africa"},
+];
+
+const TEAM_LEVELS = {
+  "Spain":1,"France":1,"England":1,"Portugal":1,"Brazil":1,
+  "Argentina":2,"Germany":2,"Netherlands":2,"Norway":2,"Colombia":2,"Belgium":2,
+  "Morocco":3,"Japan":3,"USA":3,"Switzerland":3,"Mexico":3,"Uruguay":3,"Ecuador":3,
+  "Turkey":4,"Croatia":4,"Senegal":4,"Sweden":4,"Austria":4,"Scotland":4,"Canada":4,"Czech Republic":4,
+  "Ivory Coast":5,"Ghana":5,"Egypt":5,"Paraguay":5,"Algeria":5,"South Korea":5,"Tunisia":5,"Bosnia":5,"Australia":5,"Iran":5,
+  "DR Congo":6,"South Africa":6,"Cape Verde":6,"Saudi Arabia":6,"Panama":6,"Uzbekistan":6,"Qatar":6,"New Zealand":6,"Iraq":6,"Haiti":6,"Curacao":6,"Jordan":6
+};
+
+const ALL_TEAMS = Object.keys(TEAM_LEVELS).sort();
+const SQUARES_MAP = [26,10,9,8,7,6,5,4,3,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,5];
+
+let teamScores = {};
+ALL_TEAMS.forEach(t => { teamScores[t] = {goals:0,wins:0}; });
+
+function getTeams(p){ return [p.l1,p.l2,p.l3,p.l4,p.l5,p.l6]; }
+function calcPoints(p){
+  let g=0,w=0;
+  getTeams(p).forEach(t=>{ g+=teamScores[t]?.goals||0; w+=teamScores[t]?.wins||0; });
+  return {goals:g,wins:w,total:g+w*3};
+}
+function getRanked(){
+  return PARTICIPANTS.map(p=>({...p,...calcPoints(p)}))
+    .sort((a,b)=>b.total-a.total||b.goals-a.goals);
+}
+function getSquares(rank,total){ return total===0?1:(rank<=25?SQUARES_MAP[rank-1]||1:5); }
+
+function showTab(id,el){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  el.classList.add('active');
+  if(id==='leaderboard') renderLeaderboard();
+  if(id==='picks') renderPicks();
+  if(id==='teams') renderTeams();
+  if(id==='scores') renderScoreInputs();
+  if(id==='grid') renderGrid();
+}
+
+function renderLeaderboard(){
+  const ranked = getRanked();
+  const totalGoals = ranked.reduce((s,p)=>s+p.goals,0);
+  document.getElementById('summary-stats').innerHTML = `
+    <div class="stat-card gold"><div class="stat-label">Leader</div><div class="stat-value" style="font-size:22px;color:var(--gold)">${ranked[0]?.name.split(' ').slice(0,2).join(' ')||'TBD'}</div><div class="stat-sub">${ranked[0]?.total||0} pts</div></div>
+    <div class="stat-card teal"><div class="stat-label">Goals scored</div><div class="stat-value">${totalGoals}</div><div class="stat-sub">across all teams</div></div>
+    <div class="stat-card blue"><div class="stat-label">Participants</div><div class="stat-value">26</div><div class="stat-sub">$100 buy-in</div></div>
+    <div class="stat-card red"><div class="stat-label">Total pool</div><div class="stat-value">$2,600</div><div class="stat-sub">+ bonus pots</div></div>
+  `;
+
+  const tbody = document.getElementById('leaderboard-body');
+  tbody.innerHTML='';
+  const maxPts = ranked[0]?.total||1;
+  ranked.forEach((p,i)=>{
+    const rank=i+1; const sq=getSquares(rank,p.total); const isLast=rank===26;
+    const rankCls = rank<=3?`rank-${rank}`:'rank-other';
+    const icon = rank===1?'&#129351;':rank===2?'&#129352;':rank===3?'&#129353;':'';
+    const teams = getTeams(p);
+    const teamHtml = teams.map(t=>{
+      const sc=(teamScores[t]?.goals||0)+(teamScores[t]?.wins||0)*3;
+      return `<span class="team-pill ${sc>0?'live':''}">${t}</span>`;
+    }).join('');
+    const pct = Math.round((p.total/maxPts)*100);
+    tbody.innerHTML+=`<tr>
+      <td><span class="rank-num ${rankCls}">${icon||rank}</span></td>
+      <td style="font-weight:500">${p.name}</td>
+      <td style="text-align:center;color:var(--muted)">${p.goals}</td>
+      <td style="text-align:center;color:var(--muted)">${p.wins}</td>
+      <td style="text-align:center">
+        <span class="pts-val" style="color:${rank===1?'var(--gold)':rank<=3?'var(--teal)':'var(--text)'}">${p.total}</span>
+        <div class="prog-wrap"><div class="prog-fill ${rank===1?'gold':''}" style="width:${pct}%"></div></div>
+      </td>
+      <td style="text-align:center"><span class="sq-badge ${isLast?'last':rank===1?'leader':''}">${sq} sq${sq!==1?'s':''}</span></td>
+      <td>${teamHtml}</td>
+    </tr>`;
+  });
+
+  const ctx = document.getElementById('points-chart');
+  if(window._chart) window._chart.destroy();
+  window._chart = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels: ranked.map(p=>p.name.split(' ')[0]),
+      datasets:[{
+        label:'Points',
+        data: ranked.map(p=>p.total),
+        backgroundColor: ranked.map((_,i)=>i===0?'#f5c842':i===25?'#ff4757':'rgba(0,212,170,0.55)'),
+        borderRadius:4, borderSkipped:false,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{beginAtZero:true,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#8896b3',font:{size:11}}},
+        x:{grid:{display:false},ticks:{color:'#8896b3',font:{size:10},maxRotation:45}}
+      }
+    }
+  });
+}
+
+function renderPicks(){
+  const search = document.getElementById('picks-search').value.toLowerCase();
+  const filterTeam = document.getElementById('picks-filter-team').value;
+  const sel = document.getElementById('picks-filter-team');
+  if(sel.options.length<=1) ALL_TEAMS.forEach(t=>{const o=document.createElement('option');o.value=t;o.text=t;sel.appendChild(o);});
+  const tbody = document.getElementById('picks-body');
+  tbody.innerHTML='';
+  PARTICIPANTS.filter(p=>{
+    return p.name.toLowerCase().includes(search) && (!filterTeam||getTeams(p).includes(filterTeam));
+  }).forEach(p=>{
+    const cells = [p.l1,p.l2,p.l3,p.l4,p.l5,p.l6].map(t=>{
+      const sc=(teamScores[t]?.goals||0)+(teamScores[t]?.wins||0)*3;
+      return `<td><span class="team-pill ${sc>0?'live':''}">${t}</span></td>`;
+    }).join('');
+    tbody.innerHTML+=`<tr><td style="font-weight:500">${p.name}</td>${cells}</tr>`;
+  });
+}
+
+function renderTeams(){
+  const tbody = document.getElementById('teams-body');
+  tbody.innerHTML='';
+  ALL_TEAMS.forEach(team=>{
+    const sc=teamScores[team]||{goals:0,wins:0};
+    const pts=sc.goals+sc.wins*3;
+    const owners=PARTICIPANTS.filter(p=>getTeams(p).includes(team)).map(p=>p.name.split(' ')[0]);
+    tbody.innerHTML+=`<tr>
+      <td style="font-weight:500">${team}</td>
+      <td><span class="lvl">L${TEAM_LEVELS[team]||'?'}</span></td>
+      <td style="text-align:center">${sc.goals}</td>
+      <td style="text-align:center">${sc.wins}</td>
+      <td style="text-align:center;font-weight:600;color:${pts>0?'var(--teal)':'var(--muted)'}">${pts}</td>
+      <td style="font-size:12px;color:var(--muted)">${owners.join(', ')||'—'}</td>
+    </tr>`;
+  });
+}
+
+function renderScoreInputs(){
+  const container = document.getElementById('score-inputs');
+  container.innerHTML='';
+  ALL_TEAMS.forEach(team=>{
+    const sc=teamScores[team]||{goals:0,wins:0};
+    const pts=sc.goals+sc.wins*3;
+    const key=team.replace(/ /g,'_');
+    container.innerHTML+=`<div class="score-row">
+      <span style="font-weight:500">${team}<span class="lvl">L${TEAM_LEVELS[team]}</span></span>
+      <input class="score-input" type="number" min="0" id="goals-${key}" value="${sc.goals}">
+      <input class="score-input" type="number" min="0" id="wins-${key}" value="${sc.wins}">
+      <span id="pts-${key}" style="text-align:center;font-weight:600;color:${pts>0?'var(--teal)':'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.5px">${pts}</span>
+    </div>`;
+  });
+}
+
+function saveScores(){
+  ALL_TEAMS.forEach(team=>{
+    const key=team.replace(/ /g,'_');
+    const g=parseInt(document.getElementById('goals-'+key)?.value)||0;
+    const w=parseInt(document.getElementById('wins-'+key)?.value)||0;
+    teamScores[team]={goals:g,wins:w};
+    const pts=g+w*3;
+    const el=document.getElementById('pts-'+key);
+    if(el){el.textContent=pts;el.style.color=pts>0?'var(--teal)':'var(--muted)';}
+  });
+  alert('Scores saved! Check the Leaderboard for updated standings.');
+}
+
+function renderGrid(){
+  const ranked=getRanked();
+  document.getElementById('squares-stats').innerHTML=`
+    <div class="stat-card gold"><div class="stat-label">Total squares</div><div class="stat-value">100</div><div class="stat-sub">10x10 grid</div></div>
+    <div class="stat-card teal"><div class="stat-label">Free squares</div><div class="stat-value">26</div><div class="stat-sub">1 per participant</div></div>
+    <div class="stat-card blue"><div class="stat-label">Earned squares</div><div class="stat-value">74</div><div class="stat-sub">by standings</div></div>
+    <div class="stat-card red"><div class="stat-label">1st place</div><div class="stat-value">26</div><div class="stat-sub">total squares</div></div>
+  `;
+  const tbody=document.getElementById('squares-body');
+  tbody.innerHTML='';
+  ranked.forEach((p,i)=>{
+    const rank=i+1; const sq=getSquares(rank,p.total); const isLast=rank===26;
+    tbody.innerHTML+=`<tr>
+      <td style="color:var(--muted)">${rank}</td>
+      <td style="font-weight:500">${p.name}</td>
+      <td style="text-align:center"><span class="pts-val">${p.total}</span></td>
+      <td style="text-align:center"><span class="sq-badge ${isLast?'last':rank===1?'leader':''}">${sq}</span></td>
+    </tr>`;
+  });
+  const tbl=document.getElementById('final-grid-table');
+  tbl.innerHTML='';
+  let hrow=`<tr><td class="grid-axis" style="font-size:9px;color:var(--muted)">MIN/JER</td>`;
+  for(let j=0;j<10;j++) hrow+=`<td class="grid-head">${j}</td>`;
+  hrow+='</tr>'; tbl.innerHTML=hrow;
+  for(let m=0;m<10;m++){
+    let row=`<tr><td class="grid-axis">${m}</td>`;
+    for(let j=0;j<10;j++) row+=`<td class="grid-cell" title="Minute _${m} / Jersey _${j}"><span style="font-size:9px">TBD</span></td>`;
+    row+='</tr>'; tbl.innerHTML+=row;
+  }
+}
+
+renderLeaderboard();
+</script>
+</body>
+</html>
