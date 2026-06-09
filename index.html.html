@@ -240,9 +240,69 @@ tr:hover td { background:rgba(255,255,255,0.03); }
   .stat-grid { grid-template-columns:repeat(2,1fr); }
   .score-row { grid-template-columns:1fr 58px 58px 50px; gap:6px; }
 }
+
+/* ADMIN */
+.lock-btn {
+  position:fixed; bottom:20px; right:20px; z-index:100;
+  width:36px; height:36px; border-radius:50%;
+  background:rgba(255,255,255,0.07); border:1px solid var(--border2);
+  color:var(--muted); font-size:16px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .2s;
+}
+.lock-btn:hover { background:rgba(255,255,255,0.13); color:var(--text); }
+.lock-btn.unlocked { background:rgba(0,212,170,0.15); border-color:rgba(0,212,170,0.4); color:var(--teal); }
+
+.pin-overlay {
+  display:none; position:fixed; inset:0; z-index:200;
+  background:rgba(0,0,0,0.7); align-items:center; justify-content:center;
+}
+.pin-overlay.open { display:flex; }
+.pin-box {
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:16px; padding:28px 32px; width:300px; text-align:center;
+}
+.pin-box h3 { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:1.5px; margin-bottom:6px; }
+.pin-box p { font-size:12px; color:var(--muted); margin-bottom:20px; }
+.pin-input {
+  width:100%; border:1px solid var(--border2); border-radius:8px;
+  padding:10px 14px; font-size:18px; text-align:center; letter-spacing:6px;
+  background:var(--surface2); color:var(--text); margin-bottom:12px;
+}
+.pin-input:focus { outline:none; border-color:var(--teal); }
+.pin-error { font-size:12px; color:var(--red); margin-bottom:10px; min-height:18px; }
+.pin-actions { display:flex; gap:8px; }
+.pin-actions .btn { flex:1; }
+.admin-banner {
+  display:none; background:rgba(0,212,170,0.1); border-bottom:1px solid rgba(0,212,170,0.2);
+  padding:7px 24px; font-size:12px; color:var(--teal);
+  align-items:center; justify-content:center; gap:10px; position:relative; z-index:10;
+}
+.admin-banner.show { display:flex; }
 </style>
 </head>
 <body>
+
+
+<div class="admin-banner" id="admin-banner">
+  &#128274; Admin mode active &nbsp;&mdash;&nbsp; scoring unlocked
+  <button class="btn btn-ghost" style="padding:3px 10px;font-size:11px" onclick="lockAdmin()">Lock</button>
+</div>
+
+<button class="lock-btn" id="lock-btn" onclick="openPin()" title="Admin login" aria-label="Admin login">&#128274;</button>
+
+<div class="pin-overlay" id="pin-overlay">
+  <div class="pin-box">
+    <h3>Admin Access</h3>
+    <p>Enter your PIN to unlock score editing</p>
+    <input class="pin-input" type="password" id="pin-input" maxlength="8" placeholder="&bull;&bull;&bull;&bull;" onkeydown="if(event.key==='Enter')checkPin()">
+    <div class="pin-error" id="pin-error"></div>
+    <div class="pin-actions">
+      <button class="btn btn-ghost" onclick="closePin()">Cancel</button>
+      <button class="btn btn-teal" onclick="checkPin()">Unlock</button>
+    </div>
+  </div>
+</div>
 
 <header>
   <div class="header-inner">
@@ -262,7 +322,7 @@ tr:hover td { background:rgba(255,255,255,0.03); }
     <button class="tab active" onclick="showTab('leaderboard',this)">&#127942; Leaderboard</button>
     <button class="tab" onclick="showTab('picks',this)">&#128203; All Picks</button>
     <button class="tab" onclick="showTab('teams',this)">&#9917; Teams</button>
-    <button class="tab" onclick="showTab('scores',this)">&#9999; Enter Results</button>
+    <button class="tab admin-only" id="scores-tab" onclick="showTab('scores',this)" style="display:none">&#9999; Enter Results</button>
     <button class="tab" onclick="showTab('grid',this)">&#9726; Final Grid</button>
   </div>
 </div>
@@ -611,5 +671,46 @@ function renderGrid(){
 
 renderLeaderboard();
 </script>
+
+<script>
+const ADMIN_PIN = '8469';
+let adminUnlocked = false;
+
+function openPin(){
+  if(adminUnlocked){ lockAdmin(); return; }
+  document.getElementById('pin-overlay').classList.add('open');
+  document.getElementById('pin-input').value='';
+  document.getElementById('pin-error').textContent='';
+  setTimeout(()=>document.getElementById('pin-input').focus(),100);
+}
+function closePin(){ document.getElementById('pin-overlay').classList.remove('open'); }
+function checkPin(){
+  const val = document.getElementById('pin-input').value;
+  if(val === ADMIN_PIN){
+    adminUnlocked=true;
+    closePin();
+    document.getElementById('scores-tab').style.display='';
+    document.getElementById('admin-banner').classList.add('show');
+    document.getElementById('lock-btn').classList.add('unlocked');
+    document.getElementById('lock-btn').title='Admin active — click to lock';
+    document.getElementById('lock-btn').innerHTML='&#128275;';
+  } else {
+    document.getElementById('pin-error').textContent='Incorrect PIN. Try again.';
+    document.getElementById('pin-input').value='';
+    document.getElementById('pin-input').focus();
+  }
+}
+function lockAdmin(){
+  adminUnlocked=false;
+  document.getElementById('scores-tab').style.display='none';
+  document.getElementById('admin-banner').classList.remove('show');
+  document.getElementById('lock-btn').classList.remove('unlocked');
+  document.getElementById('lock-btn').title='Admin login';
+  document.getElementById('lock-btn').innerHTML='&#128274;';
+  const leaderTab = document.querySelector('.tab');
+  showTab('leaderboard', leaderTab);
+}
+</script>
+
 </body>
 </html>
