@@ -313,7 +313,10 @@ tr:hover td { background:rgba(255,255,255,0.03); }
         <div class="header-sub">Commissioner: Kenny Rogers &nbsp;&bull;&nbsp; 26 participants &nbsp;&bull;&nbsp; $100 buy-in</div>
       </div>
     </div>
-    <div class="live-chip"><span class="live-dot"></span>LIVE SCORING</div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span id="last-updated" style="font-size:11px;color:var(--muted)">Loading scores…</span>
+      <div class="live-chip"><span class="live-dot"></span>LIVE SCORING</div>
+    </div>
   </div>
 </header>
 
@@ -402,7 +405,7 @@ tr:hover td { background:rgba(255,255,255,0.03); }
 <!-- ENTER RESULTS -->
 <div id="tab-scores" class="section">
   <div class="info-box">
-    Enter goals scored and wins per team. Points recalculate instantly across all tabs when you hit <strong>Save &amp; Recalculate</strong>.
+    Scores update automatically from ESPN every 5 minutes. This view shows current tallies — no manual entry required.
   </div>
   <div class="card">
     <div class="card-header">
@@ -487,6 +490,93 @@ const SQUARES_MAP = [26,10,9,8,7,6,5,4,3,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,5];
 
 let teamScores = {};
 ALL_TEAMS.forEach(t => { teamScores[t] = {goals:0,wins:0}; });
+
+// ── ESPN → Sam's team name map ────────────────────────────────────────────────
+const ESPN_ABBR_TO_TEAM = {
+  'ESP':'Spain','FRA':'France','ENG':'England','POR':'Portugal','BRA':'Brazil',
+  'ARG':'Argentina','GER':'Germany','NED':'Netherlands','NOR':'Norway','COL':'Colombia','BEL':'Belgium',
+  'MAR':'Morocco','JPN':'Japan','USA':'USA','SUI':'Switzerland','MEX':'Mexico','URU':'Uruguay','ECU':'Ecuador',
+  'TUR':'Turkey','CRO':'Croatia','SEN':'Senegal','SWE':'Sweden','AUT':'Austria','SCO':'Scotland','CAN':'Canada','CZE':'Czech Republic',
+  'CIV':'Ivory Coast','GHA':'Ghana','EGY':'Egypt','PAR':'Paraguay','ALG':'Algeria','KOR':'South Korea','TUN':'Tunisia','BIH':'Bosnia','AUS':'Australia','IRN':'Iran',
+  'COD':'DR Congo','RSA':'South Africa','CPV':'Cape Verde','KSA':'Saudi Arabia','PAN':'Panama','UZB':'Uzbekistan','QAT':'Qatar','NZL':'New Zealand','IRQ':'Iraq','HAI':'Haiti','CUW':'Curacao','JOR':'Jordan'
+};
+
+// Date chunks covering the full WC 2026 (June 11 – July 19)
+const ESPN_DATE_CHUNKS = [
+  '20260611-20260617','20260618-20260624','20260625-20260701',
+  '20260702-20260708','20260709-20260715','20260716-20260719'
+];
+const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard';
+
+async function fetchLiveScores() {
+  try {
+    // Fetch all date chunks in parallel
+    const responses = await Promise.all(
+      ESPN_DATE_CHUNKS.map(dates =>
+        fetch(`${ESPN_BASE}?dates=${dates}&limit=100`).then(r => r.ok ? r.json() : {events:[]})
+      )
+    );
+
+    // Deduplicate events by ID
+    const seen = new Set();
+    const events = [];
+    for (const data of responses) {
+      for (const ev of (data.events || [])) {
+        if (!seen.has(ev.id)) { seen.add(ev.id); events.push(ev); }
+      }
+    }
+
+    // Reset scores
+    ALL_TEAMS.forEach(t => { teamScores[t] = {goals:0,wins:0}; });
+
+    // Tally goals and wins from finished matches
+    for (const ev of events) {
+      const comp = ev.competitions?.[0];
+      if (!comp) continue;
+      const statusState = ev.status?.type?.state;
+      const completed   = ev.status?.type?.completed;
+      if (statusState !== 'post' && !completed) continue; // skip live/scheduled
+
+      const home = comp.competitors?.find(c => c.homeAway === 'home');
+      const away = comp.competitors?.find(c => c.homeAway === 'away');
+      if (!home || !away) continue;
+
+      const homeTeam = ESPN_ABBR_TO_TEAM[home.team?.abbreviation];
+      const awayTeam = ESPN_ABBR_TO_TEAM[away.team?.abbreviation];
+      const homeGoals = parseInt(home.score, 10) || 0;
+      const awayGoals = parseInt(away.score, 10) || 0;
+
+      if (homeTeam && teamScores[homeTeam] !== undefined) {
+        teamScores[homeTeam].goals += homeGoals;
+        if (homeGoals > awayGoals) teamScores[homeTeam].wins += 1;
+      }
+      if (awayTeam && teamScores[awayTeam] !== undefined) {
+        teamScores[awayTeam].goals += awayGoals;
+        if (awayGoals > homeGoals) teamScores[awayTeam].wins += 1;
+      }
+    }
+
+    // Re-render all visible UI
+    renderLeaderboard();
+    updateLastUpdated();
+    console.log(`[WC Pool] Scores updated from ESPN — ${events.length} matches processed`);
+  } catch (err) {
+    console.warn('[WC Pool] ESPN fetch failed:', err);
+    updateLastUpdated(true);
+  }
+}
+
+function updateLastUpdated(error = false) {
+  const el = document.getElementById('last-updated');
+  if (!el) return;
+  const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  el.textContent = error ? `Update failed · ${time}` : `Updated ${time}`;
+  el.style.color = error ? 'var(--red)' : 'var(--muted)';
+}
+
+// Kick off on load, then refresh every 5 minutes
+fetchLiveScores();
+setInterval(fetchLiveScores, 5 * 60 * 1000);
 
 function getTeams(p){ return [p.l1,p.l2,p.l3,p.l4,p.l5,p.l6]; }
 function calcPoints(p){
@@ -626,16 +716,8 @@ function renderScoreInputs(){
 }
 
 function saveScores(){
-  ALL_TEAMS.forEach(team=>{
-    const key=team.replace(/ /g,'_');
-    const g=parseInt(document.getElementById('goals-'+key)?.value)||0;
-    const w=parseInt(document.getElementById('wins-'+key)?.value)||0;
-    teamScores[team]={goals:g,wins:w};
-    const pts=g+w*3;
-    const el=document.getElementById('pts-'+key);
-    if(el){el.textContent=pts;el.style.color=pts>0?'var(--teal)':'var(--muted)';}
-  });
-  alert('Scores saved! Check the Leaderboard for updated standings.');
+  // Scores now update automatically from ESPN every 5 minutes.
+  alert('Scores update automatically from ESPN every 5 minutes. No manual entry needed!');
 }
 
 function renderGrid(){
