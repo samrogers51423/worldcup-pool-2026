@@ -167,8 +167,10 @@ tr:hover td { background:rgba(255,255,255,0.03); }
   font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px;
   background:rgba(110,168,254,0.12); color:#6ea8fe; border:1px solid rgba(110,168,254,0.25);
 }
-.sq-badge.last { background:rgba(245,200,66,0.12); color:var(--gold); border-color:rgba(245,200,66,0.3); }
-.sq-badge.leader { background:rgba(245,200,66,0.15); color:var(--gold); border-color:rgba(245,200,66,0.4); font-size:13px; }
+.sq-badge.last   { background:rgba(245,200,66,0.12); color:var(--gold); border-color:rgba(245,200,66,0.3); }
+.sq-badge.gold   { background:rgba(245,200,66,0.15); color:#f5c842; border-color:rgba(245,200,66,0.5); font-size:13px; }
+.sq-badge.silver { background:rgba(192,192,192,0.12); color:#c0c0c0; border-color:rgba(192,192,192,0.4); }
+.sq-badge.bronze { background:rgba(205,127,50,0.12); color:#cd7f32; border-color:rgba(205,127,50,0.4); }
 
 /* PTS */
 .pts-val { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:.5px; }
@@ -634,10 +636,16 @@ function renderLeaderboard(){
   const maxPts = ranked[0]?.total||1;
   const sqAlloc = computeSquaresAlloc(ranked);
   const lastPts = ranked[ranked.length-1]?.total;
+  // Distinct point tiers for gold/silver/bronze (tie-aware)
+  const distinctPts = [...new Set(ranked.map(p=>p.total))].sort((a,b)=>b-a);
+  const tierOf = pts => distinctPts.indexOf(pts); // 0=gold,1=silver,2=bronze
+  const tierColor = pts => ['var(--gold)','#c0c0c0','#cd7f32'][tierOf(pts)] || 'var(--text)';
+  const tierBadge = pts => ['gold','silver','bronze'][tierOf(pts)] || '';
   ranked.forEach((p,i)=>{
     const rank=i+1; const sq=sqAlloc[i]; const isLast=p.total===lastPts;
-    const rankCls = rank<=3?`rank-${rank}`:'rank-other';
-    const icon = rank===1?'&#129351;':rank===2?'&#129352;':rank===3?'&#129353;':'';
+    const tier=tierOf(p.total);
+    const rankCls = tier===0?'rank-1':tier===1?'rank-2':tier===2?'rank-3':'rank-other';
+    const icon = tier===0?'&#129351;':tier===1?'&#129352;':tier===2?'&#129353;':'';
     const teams = getTeams(p);
     const teamHtml = teams.map(t=>{
       const sc=(teamScores[t]?.goals||0)+(teamScores[t]?.wins||0)*3;
@@ -645,16 +653,17 @@ function renderLeaderboard(){
     }).join('');
     const pct = Math.round((p.total/maxPts)*100);
     const sqDisplay = fmtSq(sq);
+    const badgeCls = isLast ? 'last' : tierBadge(p.total);
     tbody.innerHTML+=`<tr>
       <td><span class="rank-num ${rankCls}">${icon||rank}</span></td>
       <td style="font-weight:500">${p.name}</td>
       <td style="text-align:center;color:var(--muted)">${p.goals}</td>
       <td style="text-align:center;color:var(--muted)">${p.wins}</td>
       <td style="text-align:center">
-        <span class="pts-val" style="color:${rank===1?'var(--gold)':rank<=3?'var(--teal)':'var(--text)'}">${p.total}</span>
-        <div class="prog-wrap"><div class="prog-fill ${rank===1?'gold':''}" style="width:${pct}%"></div></div>
+        <span class="pts-val" style="color:${tierColor(p.total)}">${p.total}</span>
+        <div class="prog-wrap"><div class="prog-fill ${tier===0?'gold':''}" style="width:${pct}%"></div></div>
       </td>
-      <td style="text-align:center"><span class="sq-badge ${isLast?'last':rank===1?'leader':''}">${sqDisplay} sq${sq!==1?'s':''}</span></td>
+      <td style="text-align:center"><span class="sq-badge ${badgeCls}">${sqDisplay} sq${sq!==1?'s':''}</span></td>
       <td>${teamHtml}</td>
     </tr>`;
   });
