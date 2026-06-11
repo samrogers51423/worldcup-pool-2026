@@ -529,13 +529,12 @@ async function fetchLiveScores() {
     // Reset scores
     ALL_TEAMS.forEach(t => { teamScores[t] = {goals:0,wins:0}; });
 
-    // Tally goals and wins from finished matches
+    // Tally goals and wins from all started matches (including live)
     for (const ev of events) {
       const comp = ev.competitions?.[0];
       if (!comp) continue;
       const statusState = ev.status?.type?.state;
-      const completed   = ev.status?.type?.completed;
-      if (statusState !== 'post' && !completed) continue; // skip live/scheduled
+      if (statusState === 'pre') continue; // skip matches not yet started
 
       const home = comp.competitors?.find(c => c.homeAway === 'home');
       const away = comp.competitors?.find(c => c.homeAway === 'away');
@@ -545,14 +544,15 @@ async function fetchLiveScores() {
       const awayTeam = ESPN_ABBR_TO_TEAM[away.team?.abbreviation];
       const homeGoals = parseInt(home.score, 10) || 0;
       const awayGoals = parseInt(away.score, 10) || 0;
+      const completed = ev.status?.type?.completed;
 
       if (homeTeam && teamScores[homeTeam] !== undefined) {
         teamScores[homeTeam].goals += homeGoals;
-        if (homeGoals > awayGoals) teamScores[homeTeam].wins += 1;
+        if (completed && homeGoals > awayGoals) teamScores[homeTeam].wins += 1;
       }
       if (awayTeam && teamScores[awayTeam] !== undefined) {
         teamScores[awayTeam].goals += awayGoals;
-        if (awayGoals > homeGoals) teamScores[awayTeam].wins += 1;
+        if (completed && awayGoals > homeGoals) teamScores[awayTeam].wins += 1;
       }
     }
 
@@ -574,9 +574,8 @@ function updateLastUpdated(error = false) {
   el.style.color = error ? 'var(--red)' : 'var(--muted)';
 }
 
-// Kick off on load, then refresh every 5 minutes
+// Fetch on every page load
 fetchLiveScores();
-setInterval(fetchLiveScores, 5 * 60 * 1000);
 
 function getTeams(p){ return [p.l1,p.l2,p.l3,p.l4,p.l5,p.l6]; }
 function calcPoints(p){
@@ -604,7 +603,7 @@ function showTab(id,el){
 
 function renderLeaderboard(){
   const ranked = getRanked();
-  const totalGoals = ranked.reduce((s,p)=>s+p.goals,0);
+  const totalGoals = ALL_TEAMS.reduce((s,t)=>s+(teamScores[t]?.goals||0),0);
   document.getElementById('summary-stats').innerHTML = `
     <div class="stat-card gold"><div class="stat-label">Leader</div><div class="stat-value" style="font-size:22px;color:var(--gold)">${ranked[0]?.name.split(' ').slice(0,2).join(' ')||'TBD'}</div><div class="stat-sub">${ranked[0]?.total||0} pts</div></div>
     <div class="stat-card teal"><div class="stat-label">Goals scored</div><div class="stat-value">${totalGoals}</div><div class="stat-sub">across all teams</div></div>
