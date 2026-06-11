@@ -167,7 +167,7 @@ tr:hover td { background:rgba(255,255,255,0.03); }
   font-size:12px; font-weight:600; padding:3px 10px; border-radius:20px;
   background:rgba(110,168,254,0.12); color:#6ea8fe; border:1px solid rgba(110,168,254,0.25);
 }
-.sq-badge.last   { background:rgba(245,200,66,0.12); color:var(--gold); border-color:rgba(245,200,66,0.3); }
+.sq-badge.last   { background:rgba(255,71,87,0.1); color:var(--red); border-color:rgba(255,71,87,0.3); }
 .sq-badge.gold   { background:rgba(245,200,66,0.15); color:#f5c842; border-color:rgba(245,200,66,0.5); font-size:13px; }
 .sq-badge.silver { background:rgba(192,192,192,0.12); color:#c0c0c0; border-color:rgba(192,192,192,0.4); }
 .sq-badge.bronze { background:rgba(205,127,50,0.12); color:#cd7f32; border-color:rgba(205,127,50,0.4); }
@@ -642,7 +642,7 @@ function renderLeaderboard(){
   const tierColor = pts => ['var(--gold)','#c0c0c0','#cd7f32'][tierOf(pts)] || 'var(--text)';
   const tierBadge = pts => ['gold','silver','bronze'][tierOf(pts)] || '';
   ranked.forEach((p,i)=>{
-    const rank=i+1; const sq=sqAlloc[i]; const isLast=p.total===lastPts;
+    const rank=i+1; const sq=sqAlloc[i]; const isLast=p.total===lastPts&&lastPts!==ranked[0]?.total;
     const tier=tierOf(p.total);
     const rankCls = tier===0?'rank-1':tier===1?'rank-2':tier===2?'rank-3':'rank-other';
     const icon = tier===0?'&#129351;':tier===1?'&#129352;':tier===2?'&#129353;':'';
