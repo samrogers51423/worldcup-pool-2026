@@ -766,13 +766,16 @@ function renderGrid(){
   tbody.innerHTML='';
   const sqAlloc2 = computeSquaresAlloc(ranked);
   const lastPts2 = ranked[ranked.length-1]?.total;
+  const distinctPts2 = [...new Set(ranked.map(p=>p.total))].sort((a,b)=>b-a);
+  const tierBadge2 = pts => ['gold','silver','bronze'][distinctPts2.indexOf(pts)] || '';
   ranked.forEach((p,i)=>{
     const rank=i+1; const sq=sqAlloc2[i]; const isLast=p.total===lastPts2;
+    const badgeCls2 = isLast ? 'last' : tierBadge2(p.total);
     tbody.innerHTML+=`<tr>
       <td style="color:var(--muted)">${rank}</td>
       <td style="font-weight:500">${p.name}</td>
       <td style="text-align:center"><span class="pts-val">${p.total}</span></td>
-      <td style="text-align:center"><span class="sq-badge ${isLast?'last':rank===1?'leader':''}">${fmtSq(sq)}</span></td>
+      <td style="text-align:center"><span class="sq-badge ${badgeCls2}">${fmtSq(sq)}</span></td>
     </tr>`;
   });
   const tbl=document.getElementById('final-grid-table');
