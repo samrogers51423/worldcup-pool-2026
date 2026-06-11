@@ -641,7 +641,7 @@ function renderLeaderboard(){
     const teams = getTeams(p);
     const teamHtml = teams.map(t=>{
       const sc=(teamScores[t]?.goals||0)+(teamScores[t]?.wins||0)*3;
-      return `<span class="team-pill ${sc>0?'live':''}">${t}</span>`;
+      return `<span class="team-pill ${sc>0?'live':''}">${t}${sc>0?` · ${sc}pts`:''}</span>`;
     }).join('');
     const pct = Math.round((p.total/maxPts)*100);
     const sqDisplay = fmtSq(sq);
@@ -704,7 +704,12 @@ function renderPicks(){
 function renderTeams(){
   const tbody = document.getElementById('teams-body');
   tbody.innerHTML='';
-  ALL_TEAMS.forEach(team=>{
+  const sortedTeams = [...ALL_TEAMS].sort((a,b)=>{
+    const pa=(teamScores[a]?.goals||0)+(teamScores[a]?.wins||0)*3;
+    const pb=(teamScores[b]?.goals||0)+(teamScores[b]?.wins||0)*3;
+    return pb-pa||a.localeCompare(b);
+  });
+  sortedTeams.forEach(team=>{
     const sc=teamScores[team]||{goals:0,wins:0};
     const pts=sc.goals+sc.wins*3;
     const owners=PARTICIPANTS.filter(p=>getTeams(p).includes(team)).map(p=>p.name.split(' ')[0]);
