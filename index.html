@@ -587,7 +587,25 @@ function getRanked(){
   return PARTICIPANTS.map(p=>({...p,...calcPoints(p)}))
     .sort((a,b)=>b.total-a.total||b.goals-a.goals);
 }
-function getSquares(rank,total){ return total===0?1:(rank<=25?SQUARES_MAP[rank-1]||1:5); }
+// Returns an array of square allocations (one per ranked participant), handling ties.
+// Tied participants pool the squares for the ranks they occupy and split evenly.
+function computeSquaresAlloc(ranked) {
+  const n = ranked.length;
+  const alloc = new Array(n);
+  let i = 0;
+  while (i < n) {
+    const pts = ranked[i].total;
+    let j = i;
+    while (j < n && ranked[j].total === pts) j++;
+    let totalSq = 0;
+    for (let k = i; k < j; k++) totalSq += SQUARES_MAP[k] ?? 1;
+    const share = totalSq / (j - i);
+    for (let k = i; k < j; k++) alloc[k] = share;
+    i = j;
+  }
+  return alloc;
+}
+function fmtSq(n){ return Number.isInteger(n) ? n : n.toFixed(1); }
 
 function showTab(id,el){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -614,8 +632,10 @@ function renderLeaderboard(){
   const tbody = document.getElementById('leaderboard-body');
   tbody.innerHTML='';
   const maxPts = ranked[0]?.total||1;
+  const sqAlloc = computeSquaresAlloc(ranked);
+  const lastPts = ranked[ranked.length-1]?.total;
   ranked.forEach((p,i)=>{
-    const rank=i+1; const sq=getSquares(rank,p.total); const isLast=rank===26;
+    const rank=i+1; const sq=sqAlloc[i]; const isLast=p.total===lastPts;
     const rankCls = rank<=3?`rank-${rank}`:'rank-other';
     const icon = rank===1?'&#129351;':rank===2?'&#129352;':rank===3?'&#129353;':'';
     const teams = getTeams(p);
@@ -624,6 +644,7 @@ function renderLeaderboard(){
       return `<span class="team-pill ${sc>0?'live':''}">${t}</span>`;
     }).join('');
     const pct = Math.round((p.total/maxPts)*100);
+    const sqDisplay = fmtSq(sq);
     tbody.innerHTML+=`<tr>
       <td><span class="rank-num ${rankCls}">${icon||rank}</span></td>
       <td style="font-weight:500">${p.name}</td>
@@ -633,7 +654,7 @@ function renderLeaderboard(){
         <span class="pts-val" style="color:${rank===1?'var(--gold)':rank<=3?'var(--teal)':'var(--text)'}">${p.total}</span>
         <div class="prog-wrap"><div class="prog-fill ${rank===1?'gold':''}" style="width:${pct}%"></div></div>
       </td>
-      <td style="text-align:center"><span class="sq-badge ${isLast?'last':rank===1?'leader':''}">${sq} sq${sq!==1?'s':''}</span></td>
+      <td style="text-align:center"><span class="sq-badge ${isLast?'last':rank===1?'leader':''}">${sqDisplay} sq${sq!==1?'s':''}</span></td>
       <td>${teamHtml}</td>
     </tr>`;
   });
@@ -729,13 +750,15 @@ function renderGrid(){
   `;
   const tbody=document.getElementById('squares-body');
   tbody.innerHTML='';
+  const sqAlloc2 = computeSquaresAlloc(ranked);
+  const lastPts2 = ranked[ranked.length-1]?.total;
   ranked.forEach((p,i)=>{
-    const rank=i+1; const sq=getSquares(rank,p.total); const isLast=rank===26;
+    const rank=i+1; const sq=sqAlloc2[i]; const isLast=p.total===lastPts2;
     tbody.innerHTML+=`<tr>
       <td style="color:var(--muted)">${rank}</td>
       <td style="font-weight:500">${p.name}</td>
       <td style="text-align:center"><span class="pts-val">${p.total}</span></td>
-      <td style="text-align:center"><span class="sq-badge ${isLast?'last':rank===1?'leader':''}">${sq}</span></td>
+      <td style="text-align:center"><span class="sq-badge ${isLast?'last':rank===1?'leader':''}">${fmtSq(sq)}</span></td>
     </tr>`;
   });
   const tbl=document.getElementById('final-grid-table');
