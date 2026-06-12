@@ -702,7 +702,7 @@ function computeSquaresAlloc(ranked) {
   }
   return alloc;
 }
-function fmtSq(n){ return Number.isInteger(n) ? n : n.toFixed(1); }
+function fmtSq(n){ return Number.isInteger(n) ? n : n.toFixed(2); }
 
 function showTab(id,el){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
