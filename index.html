@@ -514,7 +514,7 @@ function mlToProb(ml) {
 function computeProjections(events) {
   ALL_TEAMS.forEach(t => { teamFuturePts[t] = 0; });
   const td = {};
-  ALL_TEAMS.forEach(t => { td[t] = { wps: [], expFifa: 0 }; });
+  ALL_TEAMS.forEach(t => { td[t] = { wps: [], expFifa: 0, doneGames: 0, preGames: 0 }; });
 
   for (const ev of events) {
     const comp = ev.competitions?.[0];
@@ -559,9 +559,11 @@ function computeProjections(events) {
         const hScore = parseInt(home.score, 10) || 0, aScore = parseInt(away.score, 10) || 0;
         td[team].expFifa += isHome ? (hScore > aScore ? 3 : hScore === aScore ? 1 : 0)
                                    : (aScore > hScore ? 3 : hScore === aScore ? 1 : 0);
+        td[team].doneGames++;
       } else if (state === 'pre') {
         teamFuturePts[team] += pw * 3 + eg;
         td[team].expFifa += pw * 3 + pD;
+        td[team].preGames++;
       }
     };
 
@@ -570,14 +572,17 @@ function computeProjections(events) {
   }
 
   // Knockout projection: P(advance from group) × strength-chained rounds
-  const advProb = f => f>=7?.97:f>=6?.90:f>=5?.80:f>=4?.65:f>=3?.40:f>=2?.20:.08;
+  // If all 3 group games are done, use tight thresholds based on locked-in pts
+  const advProbFinal = f => f>=6?.97:f>=4?.70:f>=3?.22:0.02;
+  const advProbPending = f => f>=7?.97:f>=6?.90:f>=5?.80:f>=4?.65:f>=3?.40:f>=2?.20:.08;
   ALL_TEAMS.forEach(team => {
     const d = td[team];
+    const groupDone = d.doneGames >= 3 && d.preGames === 0;
     const k = d.wps.length
-      ? Math.min(0.75, Math.max(0.10, d.wps.reduce((a,b)=>a+b,0) / d.wps.length))
+      ? Math.min(0.55, Math.max(0.10, d.wps.reduce((a,b)=>a+b,0) / d.wps.length))
       : 0.25;
-    const pAdv = advProb(d.expFifa);
-    const ppg = k * 3 + 1.1;
+    const pAdv = groupDone ? advProbFinal(d.expFifa) : advProbPending(d.expFifa);
+    const ppg = k * 3 + 0.8;
     let ko = 0, pr = pAdv;
     for (let r = 0; r < 5; r++) { ko += pr * ppg; pr *= k; }
     teamFuturePts[team] += ko;
