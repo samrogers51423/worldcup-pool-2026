@@ -162,6 +162,10 @@ tr:hover td { background:rgba(255,255,255,0.03); }
   background:rgba(0,212,170,0.1); color:var(--teal);
   border-color:rgba(0,212,170,0.3);
 }
+.team-pill.eliminated {
+  background:rgba(255,71,87,0.1); color:var(--red);
+  border-color:rgba(255,71,87,0.3);
+}
 
 /* PROGRESS */
 .prog-wrap { height:4px; background:rgba(255,255,255,0.08); border-radius:2px; margin-top:5px; overflow:hidden; min-width:60px; }
@@ -505,6 +509,7 @@ ALL_TEAMS.forEach(t => { teamScores[t] = {goals:0,wins:0}; });
 // ── Projection engine ─────────────────────────────────────────────────────────
 let teamFuturePts = {};
 ALL_TEAMS.forEach(t => { teamFuturePts[t] = 0; });
+let teamEliminated = new Set();
 
 function mlToProb(ml) {
   const n = parseFloat(ml);
@@ -517,6 +522,7 @@ const KO_SLUGS = new Set(Object.keys(KO_ROUNDS_AFTER));
 
 function computeProjections(events) {
   ALL_TEAMS.forEach(t => { teamFuturePts[t] = 0; });
+  teamEliminated = new Set();
   const td = {};
   ALL_TEAMS.forEach(t => { td[t] = { wps: [], expFifa: 0, doneGames: 0, preGames: 0, koPwin: null, koGoals: 0, koRoundsAfter: 0 }; });
 
@@ -598,17 +604,26 @@ function computeProjections(events) {
       : 0.25;
     const ppg = k * 3 + 0.8; // expected pool pts per future unknown round
 
+    const ppgUnknown = k * 3 + 1.4; // 1.4 expected goals for rounds without spread data
+
     if (d.koPwin !== null) {
-      // Known knockout game: use real match odds for this round, chain forward for the rest
+      // Known knockout game: use real match odds + spread-based goals for this round
       teamFuturePts[team] += d.koPwin * 3 + d.koGoals;
+      // Chain remaining rounds using strength estimate + 1.4 goals
       let pr = d.koPwin * k;
-      for (let r = 0; r < d.koRoundsAfter; r++) { teamFuturePts[team] += pr * ppg; pr *= k; }
+      for (let r = 0; r < d.koRoundsAfter; r++) { teamFuturePts[team] += pr * ppgUnknown; pr *= k; }
     } else {
-      // No scheduled KO game yet — project from group stage advance probability
       const groupDone = d.doneGames >= 3 && d.preGames === 0;
-      const pAdv = groupDone ? advProbFinal(d.expFifa) : advProbPending(d.expFifa);
-      let pr = pAdv;
-      for (let r = 0; r < 5; r++) { teamFuturePts[team] += pr * ppg; pr *= k; }
+      if (groupDone) {
+        // Group stage complete, no KO game found — team is eliminated
+        teamEliminated.add(team);
+        // teamFuturePts[team] stays 0
+      } else {
+        // Still in group stage — estimate from expected FIFA pts
+        const pAdv = advProbPending(d.expFifa);
+        let pr = pAdv;
+        for (let r = 0; r < 5; r++) { teamFuturePts[team] += pr * ppgUnknown; pr *= k; }
+      }
     }
   });
 }
@@ -780,7 +795,8 @@ function renderLeaderboard(){
     const teams = getTeams(p);
     const teamHtml = `<div class="teams-grid">${teams.map((t,i)=>{
       const sc=(teamScores[t]?.goals||0)+(teamScores[t]?.wins||0)*3;
-      return `<div class="tg-cell"><div class="tg-lvl">L${i+1}</div><span class="team-pill ${sc>0?'live':''}">${t}${sc>0?`<br><span class="tg-pts">${sc}pts</span>`:''}</span></div>`;
+      const cls=teamEliminated.has(t)?'eliminated':sc>0?'live':'';
+      return `<div class="tg-cell"><div class="tg-lvl">L${i+1}</div><span class="team-pill ${cls}">${t}${sc>0?`<br><span class="tg-pts">${sc}pts</span>`:''}</span></div>`;
     }).join('')}</div>`;
     const pct = Math.round((p.total/maxPts)*100);
     const sqDisplay = fmtSq(sq);
