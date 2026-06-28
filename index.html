@@ -511,10 +511,14 @@ function mlToProb(ml) {
   return n < 0 ? Math.abs(n) / (Math.abs(n) + 100) : 100 / (n + 100);
 }
 
+// Rounds remaining after each knockout slug (not counting the current game)
+const KO_ROUNDS_AFTER = {'round-of-32':4,'round-of-16':3,'quarterfinal':2,'semifinal':1,'final':0};
+const KO_SLUGS = new Set(Object.keys(KO_ROUNDS_AFTER));
+
 function computeProjections(events) {
   ALL_TEAMS.forEach(t => { teamFuturePts[t] = 0; });
   const td = {};
-  ALL_TEAMS.forEach(t => { td[t] = { wps: [], expFifa: 0, doneGames: 0, preGames: 0 }; });
+  ALL_TEAMS.forEach(t => { td[t] = { wps: [], expFifa: 0, doneGames: 0, preGames: 0, koPwin: null, koGoals: 0, koRoundsAfter: 0 }; });
 
   for (const ev of events) {
     const comp = ev.competitions?.[0];
@@ -528,15 +532,16 @@ function computeProjections(events) {
     const odds = comp.odds?.[0];
     const state = ev.status?.type?.state;
     const done = ev.status?.type?.completed;
+    const slug = ev.season?.slug ?? '';
+    const isKO = KO_SLUGS.has(slug);
 
-    let pH = 0.35, pD = 0.25, pA = 0.40, hg = 1.1, ag = 1.1;
+    let pH = 0.35, pD = 0.25, pA = 0.40, hg = 1.0, ag = 1.0;
 
     if (odds) {
       const mH = odds.moneyline?.home?.close?.odds ?? odds.moneyline?.home?.open?.odds;
       const mA = odds.moneyline?.away?.close?.odds ?? odds.moneyline?.away?.open?.odds;
       const mD = odds.moneyline?.draw?.close?.odds ?? odds.moneyline?.draw?.open?.odds ?? odds.drawOdds?.moneyLine;
-      const ou = parseFloat(odds.overUnder) || 2.5;
-      // homeSpread < 0 → home favored (e.g. -3.5); > 0 → home underdog
+      const ou = parseFloat(odds.overUnder) || 2.2;
       const hs = parseFloat(odds.pointSpread?.home?.close?.line ?? odds.pointSpread?.home?.open?.line ?? 0);
 
       if (mH && mA) {
@@ -544,7 +549,6 @@ function computeProjections(events) {
         const s = rH + rD + rA;
         pH = rH/s; pD = rD/s; pA = rA/s;
       }
-      // homeExpGoals = (O/U - homeSpread) / 2  (negate spread to get goal advantage)
       hg = Math.max(0, (ou - hs) / 2);
       ag = Math.max(0, (ou + hs) / 2);
     }
@@ -556,14 +560,26 @@ function computeProjections(events) {
       if (odds) td[team].wps.push(pw);
 
       if (state === 'post' && done) {
-        const hScore = parseInt(home.score, 10) || 0, aScore = parseInt(away.score, 10) || 0;
-        td[team].expFifa += isHome ? (hScore > aScore ? 3 : hScore === aScore ? 1 : 0)
-                                   : (aScore > hScore ? 3 : hScore === aScore ? 1 : 0);
-        td[team].doneGames++;
+        if (!isKO) {
+          // Group stage completed game — track FIFA pts for advance probability
+          const hScore = parseInt(home.score, 10) || 0, aScore = parseInt(away.score, 10) || 0;
+          td[team].expFifa += isHome ? (hScore > aScore ? 3 : hScore === aScore ? 1 : 0)
+                                     : (aScore > hScore ? 3 : hScore === aScore ? 1 : 0);
+          td[team].doneGames++;
+        }
+        // Completed KO games: already counted in teamScores (goals/wins), nothing to project
       } else if (state === 'pre') {
-        teamFuturePts[team] += pw * 3 + eg;
-        td[team].expFifa += pw * 3 + pD;
-        td[team].preGames++;
+        if (isKO) {
+          // Real knockout game — store match odds, handle in projection phase
+          td[team].koPwin = pw;
+          td[team].koGoals = eg;
+          td[team].koRoundsAfter = KO_ROUNDS_AFTER[slug] ?? 0;
+        } else {
+          // Group stage game still to play
+          teamFuturePts[team] += pw * 3 + eg;
+          td[team].expFifa += pw * 3 + pD;
+          td[team].preGames++;
+        }
       }
     };
 
@@ -571,21 +587,29 @@ function computeProjections(events) {
     handle(at, false);
   }
 
-  // Knockout projection: P(advance from group) × strength-chained rounds
-  // If all 3 group games are done, use tight thresholds based on locked-in pts
-  const advProbFinal = f => f>=6?.97:f>=4?.70:f>=3?.22:0.02;
+  // Knockout projection
+  const advProbFinal   = f => f>=6?.97:f>=4?.70:f>=3?.22:0.02; // group stage complete
   const advProbPending = f => f>=7?.97:f>=6?.90:f>=5?.80:f>=4?.65:f>=3?.40:f>=2?.20:.08;
+
   ALL_TEAMS.forEach(team => {
     const d = td[team];
-    const groupDone = d.doneGames >= 3 && d.preGames === 0;
     const k = d.wps.length
       ? Math.min(0.55, Math.max(0.10, d.wps.reduce((a,b)=>a+b,0) / d.wps.length))
       : 0.25;
-    const pAdv = groupDone ? advProbFinal(d.expFifa) : advProbPending(d.expFifa);
-    const ppg = k * 3 + 0.8;
-    let ko = 0, pr = pAdv;
-    for (let r = 0; r < 5; r++) { ko += pr * ppg; pr *= k; }
-    teamFuturePts[team] += ko;
+    const ppg = k * 3 + 0.8; // expected pool pts per future unknown round
+
+    if (d.koPwin !== null) {
+      // Known knockout game: use real match odds for this round, chain forward for the rest
+      teamFuturePts[team] += d.koPwin * 3 + d.koGoals;
+      let pr = d.koPwin * k;
+      for (let r = 0; r < d.koRoundsAfter; r++) { teamFuturePts[team] += pr * ppg; pr *= k; }
+    } else {
+      // No scheduled KO game yet — project from group stage advance probability
+      const groupDone = d.doneGames >= 3 && d.preGames === 0;
+      const pAdv = groupDone ? advProbFinal(d.expFifa) : advProbPending(d.expFifa);
+      let pr = pAdv;
+      for (let r = 0; r < 5; r++) { teamFuturePts[team] += pr * ppg; pr *= k; }
+    }
   });
 }
 
