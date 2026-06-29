@@ -534,7 +534,8 @@ function computeProjections(events) {
     koWins: 0,          // completed KO games this team advanced from (rounds survived)
     lostKO: false,      // lost a completed KO game (advance === false)
     inKO: false,        // appears in any knockout fixture as a real team
-    next: null          // next scheduled real game with odds {pwin, goals, roundsAfter}
+    next: null,         // next scheduled real game with odds {pwin, goals, roundsAfter}
+    gd: 0, gpFinished: 0 // cumulative goal differential and completed games (strength)
   }; });
 
   for (const ev of events) {
@@ -581,12 +582,15 @@ function computeProjections(events) {
       if (isKO) d.inKO = true;
 
       if (state === 'post' && done) {
+        const hScore = parseInt(home.score, 10) || 0, aScore = parseInt(away.score, 10) || 0;
+        // Goal differential from every completed game = strength signal
+        d.gd += isHome ? (hScore - aScore) : (aScore - hScore);
+        d.gpFinished++;
         if (isKO) {
           // ESPN's authoritative advance flag (PK-aware)
           if (comp.advance === true) d.koWins++;
           else if (comp.advance === false) d.lostKO = true;
         } else {
-          const hScore = parseInt(home.score, 10) || 0, aScore = parseInt(away.score, 10) || 0;
           d.expFifa += isHome ? (hScore > aScore ? 3 : hScore === aScore ? 1 : 0)
                               : (aScore > hScore ? 3 : hScore === aScore ? 1 : 0);
           d.groupDone++;
@@ -626,10 +630,18 @@ function computeProjections(events) {
       return; // teamFuturePts stays 0
     }
 
-    // Strength factor: avg win prob across games we have odds for
-    const k = d.wps.length
-      ? Math.min(0.55, Math.max(0.10, d.wps.reduce((a,b)=>a+b,0) / d.wps.length))
-      : 0.25;
+    // Strength factor for undrawn future rounds — blend two signals:
+    //  (a) odds-implied win probability (bookmakers' view), and
+    //  (b) goal differential per game (how dominant they've actually been).
+    // GD/game mapped to a win-prob-like scale (softened: group-stage GD is inflated
+    // by blowouts vs weak opponents, so 0.07/goal keeps elite teams differentiated).
+    // 0 GD → 0.50, +2 → ~0.64, -1 → ~0.43
+    const oddsK = d.wps.length
+      ? d.wps.reduce((a,b)=>a+b,0) / d.wps.length
+      : 0.30;
+    const gdPerGame = d.gpFinished ? d.gd / d.gpFinished : 0;
+    const gdK = 0.50 + gdPerGame * 0.07;
+    const k = Math.min(0.60, Math.max(0.10, 0.5 * oddsK + 0.5 * gdK));
     const ppgUnknown = k * 3 + 1.4; // strength-based: 1.4 expected goals where no spread
 
     if (d.next) {
