@@ -728,11 +728,12 @@ async function fetchLiveScores() {
 
       if (homeTeam && teamScores[homeTeam] !== undefined) {
         teamScores[homeTeam].goals += homeGoals;
-        if (completed && homeGoals > awayGoals) teamScores[homeTeam].wins += 1;
+        // Use ESPN's winner field: PK-aware, and score already excludes PK goals
+        if (completed && home.winner === true) teamScores[homeTeam].wins += 1;
       }
       if (awayTeam && teamScores[awayTeam] !== undefined) {
         teamScores[awayTeam].goals += awayGoals;
-        if (completed && awayGoals > homeGoals) teamScores[awayTeam].wins += 1;
+        if (completed && away.winner === true) teamScores[awayTeam].wins += 1;
       }
     }
 
