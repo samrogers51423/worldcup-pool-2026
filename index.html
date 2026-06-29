@@ -524,7 +524,7 @@ function computeProjections(events) {
   ALL_TEAMS.forEach(t => { teamFuturePts[t] = 0; });
   teamEliminated = new Set();
   const td = {};
-  ALL_TEAMS.forEach(t => { td[t] = { wps: [], expFifa: 0, doneGames: 0, preGames: 0, koPwin: null, koGoals: 0, koRoundsAfter: 0 }; });
+  ALL_TEAMS.forEach(t => { td[t] = { wps: [], expFifa: 0, doneGames: 0, preGames: 0, liveGames: 0, koPwin: null, koGoals: 0, koRoundsAfter: 0 }; });
 
   for (const ev of events) {
     const comp = ev.competitions?.[0];
@@ -574,6 +574,8 @@ function computeProjections(events) {
           td[team].doneGames++;
         }
         // Completed KO games: already counted in teamScores (goals/wins), nothing to project
+      } else if (state === 'in' && !isKO) {
+        td[team].liveGames++;
       } else if (state === 'pre') {
         if (isKO) {
           // Real knockout game — store match odds, handle in projection phase
@@ -613,14 +615,14 @@ function computeProjections(events) {
       let pr = d.koPwin * k;
       for (let r = 0; r < d.koRoundsAfter; r++) { teamFuturePts[team] += pr * ppgUnknown; pr *= k; }
     } else {
-      const groupDone = d.doneGames >= 3 && d.preGames === 0;
-      if (groupDone) {
-        // Group stage complete, no KO game found — team is eliminated
+      // No scheduled KO game — base elimination on actual group points, not ESPN bracket scheduling
+      const groupDone = d.doneGames >= 3 && d.preGames === 0 && d.liveGames === 0;
+      const pAdv = groupDone ? advProbFinal(d.expFifa) : advProbPending(d.expFifa);
+      if (groupDone && d.expFifa <= 2) {
+        // 0-2 pts with all group games done = cannot advance
         teamEliminated.add(team);
-        // teamFuturePts[team] stays 0
+        // teamFuturePts stays 0
       } else {
-        // Still in group stage — estimate from expected FIFA pts
-        const pAdv = advProbPending(d.expFifa);
         let pr = pAdv;
         for (let r = 0; r < 5; r++) { teamFuturePts[team] += pr * ppgUnknown; pr *= k; }
       }
