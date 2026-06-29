@@ -615,14 +615,14 @@ function computeProjections(events) {
       let pr = d.koPwin * k;
       for (let r = 0; r < d.koRoundsAfter; r++) { teamFuturePts[team] += pr * ppgUnknown; pr *= k; }
     } else {
-      // No scheduled KO game — base elimination on actual group points, not ESPN bracket scheduling
       const groupDone = d.doneGames >= 3 && d.preGames === 0 && d.liveGames === 0;
-      const pAdv = groupDone ? advProbFinal(d.expFifa) : advProbPending(d.expFifa);
-      if (groupDone && d.expFifa <= 2) {
-        // 0-2 pts with all group games done = cannot advance
+      if (groupDone) {
+        // All group games done, no live game, no KO game scheduled = eliminated
         teamEliminated.add(team);
         // teamFuturePts stays 0
       } else {
+        // Still in group stage or has a live game — estimate from expected FIFA pts
+        const pAdv = advProbPending(d.expFifa);
         let pr = pAdv;
         for (let r = 0; r < 5; r++) { teamFuturePts[team] += pr * ppgUnknown; pr *= k; }
       }
