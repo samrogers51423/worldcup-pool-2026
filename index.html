@@ -517,7 +517,7 @@ function mlToProb(ml) {
 }
 
 // Rounds remaining after each knockout slug (not counting the current game)
-const KO_ROUNDS_AFTER = {'round-of-32':4,'round-of-16':3,'quarterfinal':2,'semifinal':1,'final':0};
+const KO_ROUNDS_AFTER = {'round-of-32':4,'round-of-16':3,'quarterfinals':2,'semifinals':1,'final':0,'3rd-place-match':0};
 const KO_SLUGS = new Set(Object.keys(KO_ROUNDS_AFTER));
 
 // Total knockout rounds in the tournament (R32, R16, QF, SF, Final)
