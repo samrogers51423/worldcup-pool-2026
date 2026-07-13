@@ -230,12 +230,33 @@ tr:hover td { background:rgba(255,255,255,0.03); }
 .final-grid { border-collapse:collapse; font-size:11px; }
 .final-grid td, .final-grid th {
   border:1px solid var(--border); padding:0;
-  width:54px; height:52px; text-align:center; vertical-align:middle;
+  width:60px; height:54px; text-align:center; vertical-align:middle;
 }
 .grid-axis { background:var(--surface2); color:var(--muted); font-size:10px; font-weight:600; width:40px; }
 .grid-head { background:rgba(0,212,170,0.12); color:var(--teal); font-size:11px; font-weight:600; }
-.grid-cell { color:var(--muted); font-size:10px; transition:background .15s; cursor:default; }
+.grid-corner { background:var(--surface2); font-size:8px; color:var(--muted); line-height:1.1; }
+.grid-cell { color:var(--text); font-size:9px; transition:background .15s; cursor:default; position:relative; padding:2px !important; }
 .grid-cell:hover { background:rgba(0,212,170,0.07); }
+.grid-cell .cell-name { display:block; font-size:9px; line-height:1.15; overflow:hidden; }
+.grid-cell.hit { background:rgba(255,255,255,0.04); font-weight:600; }
+.grid-cell .dots { display:flex; gap:2px; justify-content:center; margin-top:2px; min-height:8px; flex-wrap:wrap; }
+.cell-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.dot-goal { background:var(--teal); }
+.dot-half { background:var(--gold); }
+.dot-win  { background:var(--red); }
+
+/* SQUARES SUB-TABS */
+.subtabs { display:flex; gap:8px; margin-bottom:14px; }
+.subtab { padding:8px 18px; border-radius:8px; border:1px solid var(--border); background:var(--surface2);
+  color:var(--muted); font-weight:600; font-size:13px; cursor:pointer; transition:all .15s; }
+.subtab.active { background:rgba(0,212,170,0.12); color:var(--teal); border-color:rgba(0,212,170,0.4); }
+.subsection { display:none; }
+.subsection.active { display:block; }
+
+/* DOT LEGEND */
+.dot-legend { display:flex; flex-wrap:wrap; gap:16px; align-items:center; padding:12px 16px; }
+.dot-legend .item { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); }
+.dot-legend .amt { color:var(--text); font-weight:600; }
 
 /* LEVEL BADGE */
 .lvl { font-size:10px; padding:1px 6px; border-radius:20px; font-weight:600;
@@ -436,25 +457,68 @@ tr:hover td { background:rgba(255,255,255,0.03); }
 
 <!-- GRID -->
 <div id="tab-grid" class="section">
-  <div class="info-box">
-    <strong>How it works:</strong> rows = last digit of the minute a goal is scored, columns = last digit of the scorer's jersey number. Squares are randomly assigned after the semi-finals based on final standings.
+  <div class="subtabs">
+    <button class="subtab active" id="subtab-main" onclick="showSub('main',this)">&#9726; Final Grid</button>
+    <button class="subtab" id="subtab-pk" onclick="showSub('pk',this)">&#127919; PK Grid</button>
+    <button class="subtab" id="subtab-pay" onclick="showSub('pay',this)">&#128176; Payouts</button>
   </div>
-  <div class="stat-grid" id="squares-stats"></div>
-  <div class="card">
-    <div class="card-header"><span class="card-title">Square Allocations</span><span class="card-sub">After semi-finals</span></div>
-    <div class="table-wrap"><table>
-      <thead><tr>
-        <th>Rank</th><th>Participant</th>
-        <th style="text-align:center">Points</th>
-        <th style="text-align:center">Squares</th>
-      </tr></thead>
-      <tbody id="squares-body"></tbody>
-    </table></div>
+
+  <!-- ── PRIMARY 10x10 GRID ── -->
+  <div id="sub-main" class="subsection active">
+    <div class="info-box">
+      <strong>How it works:</strong> rows = last digit of the <strong>minute</strong> a goal is scored (rounded up), columns = last digit of the <strong>scorer's jersey number</strong>. When a goal is scored in the final, its square lights up with a dot for each pot it wins.
+    </div>
+    <div class="card">
+      <div class="dot-legend" id="grid-legend">
+        <div class="item"><span class="cell-dot dot-goal"></span> <span>Goal scored</span> &mdash; <span class="amt">equal share of $1,000</span></div>
+        <div class="item"><span class="cell-dot dot-half"></span> <span>Last goal of 1st half</span> &mdash; <span class="amt">$600</span></div>
+        <div class="item"><span class="cell-dot dot-win"></span> <span>Winning goal</span> &mdash; <span class="amt">$1,000</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Final Match Grid</span><span class="card-sub" id="grid-status">Awaiting assignments</span></div>
+      <div style="overflow-x:auto;padding:16px">
+        <table class="final-grid" id="final-grid-table"></table>
+      </div>
+    </div>
   </div>
-  <div class="card">
-    <div class="card-header"><span class="card-title">Final Match Grid</span><span class="card-sub">Assigned after semi-finals</span></div>
-    <div style="overflow-x:auto;padding:16px">
-      <table class="final-grid" id="final-grid-table"></table>
+
+  <!-- ── SECONDARY 5x5 PK GRID ── -->
+  <div id="sub-pk" class="subsection">
+    <div class="info-box">
+      <strong>Penalty-kick tiebreaker:</strong> if the final goes to penalties, the $1,000 winning-goal pot is decided here based on the final shootout score. Everyone except last place gets one free square.
+    </div>
+    <div class="card">
+      <div class="dot-legend">
+        <div class="item"><span class="cell-dot dot-win"></span> <span>Winning shootout score</span> &mdash; <span class="amt">$1,000</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Penalty Kick Grid</span><span class="card-sub" id="pk-status">Only used if the final goes to PKs</span></div>
+      <div style="overflow-x:auto;padding:16px">
+        <table class="final-grid" id="pk-grid-table"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LIVE PAYOUTS ── -->
+  <div id="sub-pay" class="subsection">
+    <div class="info-box">
+      <strong>Live payouts:</strong> updates in real time as goals are scored in the final. Goal pot ($1,000) is split equally across every goal scored; last goal of the 1st half ($600) and winning goal ($1,000) are awarded per the grid. Pots total $2,600 &mdash; the full buy-in.
+    </div>
+    <div class="stat-grid" id="payout-stats"></div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Winnings Leaderboard</span><span class="card-sub" id="pay-status">Awaiting the final</span></div>
+      <div class="table-wrap"><table>
+        <thead><tr>
+          <th style="width:44px">#</th><th>Participant</th>
+          <th style="text-align:right">Goal pot</th>
+          <th style="text-align:right">1st half</th>
+          <th style="text-align:right">Winning goal</th>
+          <th style="text-align:right">Total</th>
+        </tr></thead>
+        <tbody id="payout-body"></tbody>
+      </table></div>
     </div>
   </div>
 </div>
@@ -740,13 +804,113 @@ async function fetchLiveScores() {
     // Compute projections from pre-game odds
     computeProjections(events);
 
+    // Detect the final and pull goal-by-goal data for the squares grid
+    const finalEv = events.find(e => e.season?.slug === 'final');
+    await updateFinalHits(finalEv);
+
     // Re-render all visible UI
     renderLeaderboard();
+    if (document.getElementById('tab-grid')?.classList.contains('active')) renderGrid();
     updateLastUpdated();
     console.log(`[WC Pool] Scores updated from ESPN — ${events.length} matches processed`);
   } catch (err) {
     console.warn('[WC Pool] ESPN fetch failed:', err);
     updateLastUpdated(true);
+  }
+}
+
+// ── Final match: goal-by-goal square hits ──────────────────────────────────────
+const ESPN_SUMMARY = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary';
+
+// Parse an ESPN clock like "29'" or "90'+5'" into a whole minute (stoppage added).
+function parseGoalMinute(disp){
+  if(!disp) return null;
+  const m = String(disp).match(/(\d+)(?:'?\s*\+\s*(\d+))?/);
+  if(!m) return null;
+  return parseInt(m[1],10) + (m[2]?parseInt(m[2],10):0);
+}
+
+async function updateFinalHits(finalEv){
+  if(!finalEv){ finalHits = null; return; }
+  const state = finalEv.status?.type?.state;
+  if(state === 'pre'){ finalHits = { cells:{}, pk:null, status:'pre' }; return; }
+
+  try{
+    const sum = await fetch(`${ESPN_SUMMARY}?event=${finalEv.id}`).then(r=>r.ok?r.json():null);
+    if(!sum){ return; }
+
+    // Build athlete-id -> jersey map from both rosters
+    const jersey = {};
+    for(const rt of (sum.rosters||[])){
+      for(const pl of (rt.roster||[])){
+        if(pl.athlete?.id) jersey[pl.athlete.id] = pl.jersey;
+      }
+    }
+
+    // Collect goals in chronological order
+    const goals = [];
+    for(const ev of (sum.keyEvents||[])){
+      const isGoal = /goal/i.test(ev.type?.text||'') && !/no goal|disallowed|missed|penalty missed|own goal saved/i.test(ev.type?.text||'');
+      if(!isGoal) continue;
+      const scorer = ev.participants?.[0]?.athlete;
+      if(!scorer) continue;
+      const minute = parseGoalMinute(ev.clock?.displayValue);
+      const jNum = jersey[scorer.id];
+      if(minute==null || jNum==null || jNum==='') continue;
+      goals.push({
+        minute, period: ev.period?.number || 0,
+        jerseyDigit: parseInt(String(jNum).slice(-1),10),
+        minuteDigit: minute % 10,
+        team: ev.team?.id, order: goals.length
+      });
+    }
+
+    const cells = {};
+    const bump = (g, pot) => {
+      const key = `${g.minuteDigit},${g.jerseyDigit}`;
+      cells[key] = cells[key] || {goals:0,half:0,win:false};
+      if(pot==='goal') cells[key].goals++;
+      else if(pot==='half') cells[key].half++;
+      else if(pot==='win') cells[key].win = true;
+    };
+
+    // Goal-share pot: every goal
+    goals.forEach(g => bump(g,'goal'));
+
+    // Last goal of the FIRST half only ($600). Per the rules footnote, if the
+    // 1st half is scoreless the 0-0 square wins this pot.
+    const firstHalfGoals = goals.filter(g => g.period === 1);
+    const period = finalEv.status?.period || 0;
+    const firstHalfOver = period >= 2 || goals.some(g=>g.period>=2) || finalEv.status?.type?.completed;
+    if(firstHalfGoals.length){
+      bump(firstHalfGoals[firstHalfGoals.length-1],'half');
+    } else if(firstHalfOver){
+      cells['0,0'] = cells['0,0'] || {goals:0,half:0,win:false};
+      cells['0,0'].half++;
+    }
+
+    // Winning goal — updates LIVE. Whoever currently leads has a provisional
+    // game-winner: their goal that put them one ahead of the other team's
+    // current total (the go-ahead goal they still hold). Clears if tied.
+    const comp = finalEv.competitions?.[0];
+    const home = comp?.competitors?.find(c=>c.homeAway==='home');
+    const away = comp?.competitors?.find(c=>c.homeAway==='away');
+    const hs = parseInt(home?.score,10)||0, as = parseInt(away?.score,10)||0;
+    let pk = null;
+    if(hs !== as){
+      const winnerId = hs>as ? home?.team?.id : away?.team?.id;
+      const trailing = Math.min(hs,as);
+      const winnerGoals = goals.filter(g=>String(g.team)===String(winnerId));
+      if(winnerGoals[trailing]) bump(winnerGoals[trailing],'win'); // (trailing+1)th goal
+    } else if(finalEv.status?.type?.completed){
+      // Tied at full time → decided on penalties
+      const hsh = home?.shootoutScore, ash = away?.shootoutScore;
+      if(hsh!=null && ash!=null) pk = `${Math.max(hsh,ash)}-${Math.min(hsh,ash)}`;
+    }
+
+    finalHits = { cells, pk, totalGoals: goals.length, status: state==='post'?'post':'in' };
+  }catch(err){
+    console.warn('[WC Pool] Final summary fetch failed:', err);
   }
 }
 
@@ -939,40 +1103,168 @@ function saveScores(){
   alert('Scores update automatically from ESPN every 5 minutes. No manual entry needed!');
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// FINAL SQUARES
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Owner assignments are entered MANUALLY once Kenny runs the random draw
+// (after the semi-finals). Until then leave them null and every cell shows "TBD".
+//
+// GRID_OWNERS[minuteDigit][jerseyDigit] = "Name"  (or ["Name1","Name2"] if shared)
+//   minuteDigit 0-9 = row (last digit of the goal minute)
+//   jerseyDigit 0-9 = column (last digit of the scorer's jersey)
+//
+// PK_OWNERS is keyed by shootout scoreline label -> "Name".
+// ------------------------------------------------------------------------------
+const GRID_OWNERS = null;   // e.g. [ ["Alex","Sam",...10], ...10 rows ]
+const PK_OWNERS   = null;   // e.g. { "1-0":"Alex", "2-1":"Sam", ... }
+
+// The 25 penalty-shootout scorelines for the secondary grid (5 cols x 5 rows).
+// NOTE: exact labels to be confirmed by Kenny — placeholder layout for now.
+const PK_GRID = [
+  ['1-0','2-0','3-0','4-0','5+-0'],
+  ['2-1','3-1','4-1','5-1','1-1'],
+  ['3-2','4-2','5-2','2-2','0-0'],
+  ['4-3','5-3','3-3','5+-4','4-4'],
+  ['5-4','5+-1','5+-2','5+-3','5+-0'],
+];
+
+let finalHits = null;  // { cells:{"m,j":{goals,half,win}}, pk:"2-1"|null, totalGoals, status }
+
+// Pot sizes — total $2,600 = the 26-player buy-in.
+const GOAL_POT = 1000;  // split equally across all goals scored
+const HALF_POT = 600;   // last goal of the 1st half only (0-0 square if scoreless)
+const WIN_POT  = 1000;  // winning goal (or PK grid if final goes to penalties)
+
+function ownerLabel(o){
+  if(!o) return '<span style="color:var(--muted)">TBD</span>';
+  if(Array.isArray(o)) return o.map(n=>n.split(' ')[0]).join(' / ');
+  return o.split(' ').slice(0,2).join(' ');
+}
+
+function showSub(id, el){
+  document.querySelectorAll('.subsection').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.subtab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('sub-'+id).classList.add('active');
+  el.classList.add('active');
+}
+
 function renderGrid(){
-  const ranked=getRanked();
-  document.getElementById('squares-stats').innerHTML=`
-    <div class="stat-card gold"><div class="stat-label">Total squares</div><div class="stat-value">100</div><div class="stat-sub">10x10 grid</div></div>
-    <div class="stat-card teal"><div class="stat-label">Free squares</div><div class="stat-value">26</div><div class="stat-sub">1 per participant</div></div>
-    <div class="stat-card blue"><div class="stat-label">Earned squares</div><div class="stat-value">74</div><div class="stat-sub">by standings</div></div>
-    <div class="stat-card red"><div class="stat-label">1st place</div><div class="stat-value">26</div><div class="stat-sub">total squares</div></div>
+  renderMainGrid();
+  renderPkGrid();
+  renderPayouts();
+}
+
+// Aggregate live winnings per participant from the current final hits.
+function computePayouts(){
+  const pay = {};
+  const add = (owner, field, amt) => {
+    if(!owner) return;
+    const arr = Array.isArray(owner) ? owner : [owner];
+    const each = amt / arr.length; // shared squares split evenly
+    arr.forEach(n => { pay[n] = pay[n] || {goal:0,half:0,win:0}; pay[n][field] += each; });
+  };
+  if(finalHits && GRID_OWNERS){
+    const tg = finalHits.totalGoals || 0;
+    const perGoal = tg ? GOAL_POT / tg : 0;
+    for(const [key,c] of Object.entries(finalHits.cells)){
+      const [m,j] = key.split(',').map(Number);
+      const owner = GRID_OWNERS[m]?.[j];
+      if(c.goals) add(owner,'goal', perGoal * c.goals);
+      if(c.half)  add(owner,'half', HALF_POT * c.half);
+      if(c.win)   add(owner,'win',  WIN_POT);
+    }
+  }
+  // If the final went to PKs, the winning-goal pot is decided on the PK grid
+  if(finalHits?.pk && PK_OWNERS) add(PK_OWNERS[finalHits.pk], 'win', WIN_POT);
+
+  return Object.entries(pay)
+    .map(([name,v]) => ({name, ...v, total: v.goal + v.half + v.win}))
+    .sort((a,b) => b.total - a.total);
+}
+
+const fmtUSD = n => '$' + (Math.round(n*100)/100).toLocaleString(undefined,{minimumFractionDigits:0, maximumFractionDigits:2});
+
+function renderPayouts(){
+  const rows = computePayouts();
+  const tbody = document.getElementById('payout-body');
+  if(!tbody) return;
+  const awarded = rows.reduce((s,r)=>s+r.total,0);
+  const stats = document.getElementById('payout-stats');
+  if(stats) stats.innerHTML = `
+    <div class="stat-card gold"><div class="stat-label">Top earner</div><div class="stat-value" style="font-size:20px;color:var(--gold)">${rows[0]?rows[0].name.split(' ')[0]:'—'}</div><div class="stat-sub">${rows[0]?fmtUSD(rows[0].total):'$0'}</div></div>
+    <div class="stat-card teal"><div class="stat-label">Awarded so far</div><div class="stat-value">${fmtUSD(awarded)}</div><div class="stat-sub">of $2,600 pots</div></div>
+    <div class="stat-card blue"><div class="stat-label">Goals in final</div><div class="stat-value">${finalHits?.totalGoals||0}</div><div class="stat-sub">goal pot = $1,000</div></div>
+    <div class="stat-card red"><div class="stat-label">Winners</div><div class="stat-value">${rows.length}</div><div class="stat-sub">with winnings</div></div>
   `;
-  const tbody=document.getElementById('squares-body');
   tbody.innerHTML='';
-  const sqAlloc2 = computeSquaresAlloc(ranked);
-  const lastPts2 = ranked[ranked.length-1]?.total;
-  const distinctPts2 = [...new Set(ranked.map(p=>p.total))].sort((a,b)=>b-a);
-  const tierBadge2 = pts => ['gold','silver','bronze'][distinctPts2.indexOf(pts)] || '';
-  ranked.forEach((p,i)=>{
-    const rank=i+1; const sq=sqAlloc2[i]; const isLast=p.total===lastPts2;
-    const badgeCls2 = isLast ? 'last' : tierBadge2(p.total);
-    tbody.innerHTML+=`<tr>
-      <td style="color:var(--muted)">${rank}</td>
-      <td style="font-weight:500">${p.name}</td>
-      <td style="text-align:center"><span class="pts-val">${p.total}</span></td>
-      <td style="text-align:center"><span class="sq-badge ${badgeCls2}">${fmtSq(sq)}</span></td>
-    </tr>`;
-  });
+  if(!rows.length){
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No winnings yet — ${GRID_OWNERS?'awaiting goals in the final':'squares not assigned yet'}.</td></tr>`;
+  } else {
+    rows.forEach((r,i)=>{
+      tbody.innerHTML += `<tr>
+        <td><span class="rank-num ${i===0?'rank-1':''}">${i+1}</span></td>
+        <td style="font-weight:500">${r.name}</td>
+        <td style="text-align:right;color:var(--muted)">${r.goal?fmtUSD(r.goal):'—'}</td>
+        <td style="text-align:right;color:var(--muted)">${r.half?fmtUSD(r.half):'—'}</td>
+        <td style="text-align:right;color:var(--muted)">${r.win?fmtUSD(r.win):'—'}</td>
+        <td style="text-align:right;font-weight:700;color:var(--teal)">${fmtUSD(r.total)}</td>
+      </tr>`;
+    });
+  }
+  const st=document.getElementById('pay-status');
+  if(st) st.textContent = finalHits?.status==='post' ? 'Final complete' : finalHits?.status==='in' ? 'LIVE — updating' : 'Awaiting the final';
+}
+
+function dotsHtml(hit){
+  if(!hit) return '<div class="dots"></div>';
+  let d='';
+  if(hit.goals>0) d+='<span class="cell-dot dot-goal" title="Goal share"></span>';
+  if(hit.half>0)  d+='<span class="cell-dot dot-half" title="Last goal of half"></span>';
+  if(hit.win)     d+='<span class="cell-dot dot-win" title="Winning goal"></span>';
+  return `<div class="dots">${d}</div>`;
+}
+
+function renderMainGrid(){
   const tbl=document.getElementById('final-grid-table');
+  if(!tbl) return;
   tbl.innerHTML='';
-  let hrow=`<tr><td class="grid-axis" style="font-size:9px;color:var(--muted)">MIN/JER</td>`;
+  let hrow=`<tr><td class="grid-corner">MIN &darr;<br>JER &rarr;</td>`;
   for(let j=0;j<10;j++) hrow+=`<td class="grid-head">${j}</td>`;
   hrow+='</tr>'; tbl.innerHTML=hrow;
   for(let m=0;m<10;m++){
     let row=`<tr><td class="grid-axis">${m}</td>`;
-    for(let j=0;j<10;j++) row+=`<td class="grid-cell" title="Minute _${m} / Jersey _${j}"><span style="font-size:9px">TBD</span></td>`;
+    for(let j=0;j<10;j++){
+      const owner = GRID_OWNERS ? GRID_OWNERS[m]?.[j] : null;
+      const hit = finalHits?.cells?.[`${m},${j}`];
+      row+=`<td class="grid-cell ${hit?'hit':''}" title="Minute _${m} / Jersey _${j}">`
+         + `<span class="cell-name">${ownerLabel(owner)}</span>${dotsHtml(hit)}</td>`;
+    }
     row+='</tr>'; tbl.innerHTML+=row;
   }
+  const st=document.getElementById('grid-status');
+  if(st) st.textContent = GRID_OWNERS ? (finalHits?.status==='post'?'Final complete':finalHits?.status==='in'?'LIVE — final in progress':'Assigned — awaiting kickoff') : 'Awaiting assignments';
+}
+
+function renderPkGrid(){
+  const tbl=document.getElementById('pk-grid-table');
+  if(!tbl) return;
+  tbl.innerHTML='';
+  for(let r=0;r<PK_GRID.length;r++){
+    let row='<tr>';
+    for(let c=0;c<PK_GRID[r].length;c++){
+      const label=PK_GRID[r][c];
+      const owner = PK_OWNERS ? PK_OWNERS[label] : null;
+      const hit = finalHits?.pk===label;
+      row+=`<td class="grid-cell ${hit?'hit':''}" style="width:90px" title="Shootout ${label}">`
+         + `<div style="font-weight:700;color:var(--teal);font-size:12px">${label}</div>`
+         + `<span class="cell-name">${ownerLabel(owner)}</span>`
+         + `${hit?'<div class="dots"><span class="cell-dot dot-win"></span></div>':'<div class="dots"></div>'}</td>`;
+    }
+    row+='</tr>'; tbl.innerHTML+=row;
+  }
+  const st=document.getElementById('pk-status');
+  if(st) st.textContent = PK_OWNERS ? (finalHits?.pk?`Shootout decided: ${finalHits.pk}`:'Only used if the final goes to PKs') : 'Awaiting assignments';
 }
 
 renderLeaderboard();
