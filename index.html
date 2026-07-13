@@ -570,6 +570,11 @@ const SQUARES_MAP = [26,10,9,8,7,6,5,4,3,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,5];
 let teamScores = {};
 ALL_TEAMS.forEach(t => { teamScores[t] = {goals:0,wins:0}; });
 
+// Standings frozen at the end of the semi-finals (excludes the 3rd-place match and
+// the final) — used to allocate squares so the grid never shifts once assigned.
+let teamScoresFrozen = {};
+ALL_TEAMS.forEach(t => { teamScoresFrozen[t] = {goals:0,wins:0}; });
+
 // ── Projection engine ─────────────────────────────────────────────────────────
 let teamFuturePts = {};
 ALL_TEAMS.forEach(t => { teamFuturePts[t] = 0; });
@@ -771,7 +776,7 @@ async function fetchLiveScores() {
     }
 
     // Reset scores
-    ALL_TEAMS.forEach(t => { teamScores[t] = {goals:0,wins:0}; });
+    ALL_TEAMS.forEach(t => { teamScores[t] = {goals:0,wins:0}; teamScoresFrozen[t] = {goals:0,wins:0}; });
 
     // Tally goals and wins from all started matches (including live)
     for (const ev of events) {
@@ -789,20 +794,34 @@ async function fetchLiveScores() {
       const homeGoals = parseInt(home.score, 10) || 0;
       const awayGoals = parseInt(away.score, 10) || 0;
       const completed = ev.status?.type?.completed;
+      // Frozen standings exclude the final and 3rd-place match (post-semifinal games)
+      const slug = ev.season?.slug ?? '';
+      const preFinal = slug !== 'final' && slug !== '3rd-place-match';
 
       if (homeTeam && teamScores[homeTeam] !== undefined) {
         teamScores[homeTeam].goals += homeGoals;
         // Use ESPN's winner field: PK-aware, and score already excludes PK goals
         if (completed && home.winner === true) teamScores[homeTeam].wins += 1;
+        if (preFinal) {
+          teamScoresFrozen[homeTeam].goals += homeGoals;
+          if (completed && home.winner === true) teamScoresFrozen[homeTeam].wins += 1;
+        }
       }
       if (awayTeam && teamScores[awayTeam] !== undefined) {
         teamScores[awayTeam].goals += awayGoals;
         if (completed && away.winner === true) teamScores[awayTeam].wins += 1;
+        if (preFinal) {
+          teamScoresFrozen[awayTeam].goals += awayGoals;
+          if (completed && away.winner === true) teamScoresFrozen[awayTeam].wins += 1;
+        }
       }
     }
 
     // Compute projections from pre-game odds
     computeProjections(events);
+
+    // Auto-assign final squares once both semi-finals are complete (unless overridden)
+    ensureSquaresAssigned(events);
 
     // Detect the final and pull goal-by-goal data for the squares grid
     const finalEv = events.find(e => e.season?.slug === 'final');
@@ -926,13 +945,14 @@ function updateLastUpdated(error = false) {
 fetchLiveScores();
 
 function getTeams(p){ return [p.l1,p.l2,p.l3,p.l4,p.l5,p.l6]; }
-function calcPoints(p){
+function calcPoints(p, scores){
+  scores = scores || teamScores;
   let g=0,w=0;
-  getTeams(p).forEach(t=>{ g+=teamScores[t]?.goals||0; w+=teamScores[t]?.wins||0; });
+  getTeams(p).forEach(t=>{ g+=scores[t]?.goals||0; w+=scores[t]?.wins||0; });
   return {goals:g,wins:w,total:g+w*3};
 }
-function getRanked(){
-  return PARTICIPANTS.map(p=>({...p,...calcPoints(p)}))
+function getRanked(scores){
+  return PARTICIPANTS.map(p=>({...p,...calcPoints(p,scores)}))
     .sort((a,b)=>b.total-a.total||b.goals-a.goals);
 }
 // Returns an array of square allocations (one per ranked participant), handling ties.
@@ -1116,8 +1136,77 @@ function saveScores(){
 //
 // PK_OWNERS is keyed by shootout scoreline label -> "Name".
 // ------------------------------------------------------------------------------
-const GRID_OWNERS = null;   // e.g. [ ["Alex","Sam",...10], ...10 rows ]
-const PK_OWNERS   = null;   // e.g. { "1-0":"Alex", "2-1":"Sam", ... }
+// ════════════════════════════════════════════════════════════════════════════
+// MANUAL OVERRIDE — once Kenny runs the real draw, paste the assignments here and
+// they take priority over the automatic allocation below. Leave null to auto-assign.
+//   GRID_OWNERS_OVERRIDE = [ [row 0: 10 names], ... 10 rows ]   (row=minute digit, col=jersey digit)
+//   PK_OWNERS_OVERRIDE   = { "3-2":"Name", "1-0":"Name", ... }
+// A name can be a string (solo square) or ["Name1","Name2"] (shared square).
+// ════════════════════════════════════════════════════════════════════════════
+const GRID_OWNERS_OVERRIDE = null;
+const PK_OWNERS_OVERRIDE   = null;
+
+// Fixed seeds so the automatic draw is identical for every viewer and never reshuffles.
+const GRID_SEED = 20260719;
+const PK_SEED   = 20260719;
+
+let GRID_OWNERS = null;   // populated at runtime (override or auto)
+let PK_OWNERS   = null;
+
+// Distribution model (as agreed): a tie-group gets as many whole SOLO squares as
+// divide evenly among its members; only the leftover remainder squares are shared.
+function assignGridAuto(seed){
+  const ranked = getRanked(teamScoresFrozen);   // standings frozen at end of semi-finals
+  const pool = []; let i = 0;
+  while(i < ranked.length){
+    const pts = ranked[i].total; let j = i;
+    while(j < ranked.length && ranked[j].total === pts) j++;
+    const members = ranked.slice(i,j).map(p=>p.name);
+    let cells = 0; for(let k=i;k<j;k++) cells += SQUARES_MAP[k] ?? 1;
+    const N = members.length;
+    if(N === 1){
+      for(let c=0;c<cells;c++) pool.push(members[0]);       // solo squares
+    } else {
+      const base = Math.floor(cells / N);                   // whole squares each owns alone
+      const rem  = cells - base * N;                        // leftover that can't divide evenly
+      members.forEach(m => { for(let c=0;c<base;c++) pool.push(m); });
+      for(let c=0;c<rem;c++) pool.push(members.slice());     // only the remainder is shared
+    }
+    i = j;
+  }
+  let s = seed;
+  const rnd = () => { s = (s*1103515245 + 12345) & 0x7fffffff; return s/0x7fffffff; };
+  for(let a=pool.length-1;a>0;a--){ const b=Math.floor(rnd()*(a+1)); [pool[a],pool[b]]=[pool[b],pool[a]]; }
+  GRID_OWNERS = []; let idx = 0;
+  for(let m=0;m<10;m++){ GRID_OWNERS[m]=[]; for(let jj=0;jj<10;jj++) GRID_OWNERS[m][jj]=pool[idx++] ?? null; }
+}
+function assignPkAuto(seed){
+  const ranked = getRanked(teamScoresFrozen);
+  const eligible = ranked.slice(0, ranked.length-1).map(p=>p.name); // everyone except last place
+  const labels = PK_GRID.flat();
+  let s = seed;
+  const rnd = () => { s = (s*1103515245 + 12345) & 0x7fffffff; return s/0x7fffffff; };
+  const pool = eligible.slice();
+  for(let a=pool.length-1;a>0;a--){ const b=Math.floor(rnd()*(a+1)); [pool[a],pool[b]]=[pool[b],pool[a]]; }
+  PK_OWNERS = {};
+  labels.forEach((lab,idx) => { PK_OWNERS[lab] = pool[idx] || null; });
+}
+
+// Called every refresh. Uses the manual override if present; otherwise auto-assigns
+// once BOTH semi-finals are complete. Before then, cells stay "TBD".
+let squaresAssigned = false;
+function ensureSquaresAssigned(events){
+  if(GRID_OWNERS_OVERRIDE){ GRID_OWNERS = GRID_OWNERS_OVERRIDE; PK_OWNERS = PK_OWNERS_OVERRIDE; squaresAssigned = true; return; }
+  const sf = events.filter(e => e.season?.slug === 'semifinals');
+  const sfComplete = sf.length >= 2 && sf.every(e => e.status?.type?.completed);
+  if(sfComplete){
+    assignGridAuto(GRID_SEED);
+    assignPkAuto(PK_SEED);
+    squaresAssigned = true;
+  } else {
+    GRID_OWNERS = null; PK_OWNERS = null; squaresAssigned = false;
+  }
+}
 
 // The 25 penalty-shootout scorelines for the secondary grid (5 cols x 5 rows).
 // NOTE: exact labels to be confirmed by Kenny — placeholder layout for now.
@@ -1126,7 +1215,7 @@ const PK_GRID = [
   ['2-1','3-1','4-1','5-1','1-1'],
   ['3-2','4-2','5-2','2-2','0-0'],
   ['4-3','5-3','3-3','5+-4','4-4'],
-  ['5-4','5+-1','5+-2','5+-3','5+-0'],
+  ['5-4','5+-1','5+-2','5+-3','6-5'],
 ];
 
 let finalHits = null;  // { cells:{"m,j":{goals,half,win}}, pk:"2-1"|null, totalGoals, status }
